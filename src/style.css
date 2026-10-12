@@ -1,0 +1,473 @@
+
+/* ==========================================================
+   Solitaire - Global Styles
+   ========================================================== */
+
+:root {
+    --card-width: clamp(32px, calc((100vw - 64px) / 8.2), 120px);
+    --card-height: calc(var(--card-width) * 1.4);
+    --pile-gap: calc(var(--card-width) * 0.2);
+    --tableau-offset: calc(var(--card-width) * 0.3);
+
+    /* Width of seven card columns and six gaps. */
+    --game-width: calc(7 * var(--card-width) + 6 * var(--pile-gap));
+
+    --table-green: #146b42;
+    --panel-green: #185c3c;
+    --text-white: #ffffff;
+    --gold: #d9b65d;
+    --selection-gold: #ffd700;
+
+    --card-radius: 8px;
+    --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+
+    font-family: Arial, sans-serif;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background-color: var(--table-green);
+}
+
+#app {
+    min-height: 100vh;
+}
+
+/* ==========================================================
+   Game Toolbar
+   ========================================================== */
+
+.game-toolbar {
+    width: min(100%, calc(var(--game-width) + 64px));
+    margin: 0 auto;
+    padding: 20px 32px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
+
+.game-title {
+    margin: 0;
+    color: var(--text-white);
+    font-size: 30px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* Score and timer occupy the center of the toolbar. */
+.game-stats {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    margin-inline: auto;
+}
+
+.score-display,
+.timer-button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+
+    min-width: 72px;
+    padding: 6px 10px;
+
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+
+    background-color: var(--panel-green);
+    color: var(--text-white);
+}
+
+.stat-label {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.score-value,
+.timer-value {
+    color: var(--text-white);
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+}
+
+/* The timer doubles as the Pause button. */
+.timer-button {
+    font-family: inherit;
+    cursor: pointer;
+
+    transition:
+        background-color 0.15s ease,
+        border-color 0.15s ease;
+}
+
+.timer-button:hover:not(:disabled) {
+    background-color: #20744b;
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.timer-button:active:not(:disabled) {
+    background-color: #124b30;
+}
+
+.timer-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.game-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.game-controls button {
+    padding: 10px 20px;
+
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 8px;
+
+    background-color: #ffffff;
+    color: var(--panel-green);
+
+    font: inherit;
+    font-size: 15px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition:
+        background-color 0.15s ease,
+        opacity 0.15s ease;
+}
+
+.game-controls button:hover:not(:disabled) {
+    background-color: #e1f2e8;
+}
+
+.game-controls button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.game-controls button:focus-visible,
+.timer-button:focus-visible,
+.resume-button:focus-visible,
+.play-again-button:focus-visible {
+    outline: 3px solid var(--selection-gold);
+    outline-offset: 3px;
+}
+
+/* ==========================================================
+   Game Board Layout
+   ========================================================== */
+
+.game-board {
+    width: min(100%, calc(var(--game-width) + 64px));
+    margin: 0 auto;
+    padding: 32px;
+}
+
+.top-row,
+.tableau-row {
+    display: grid;
+    grid-template-columns: repeat(7, var(--card-width));
+    gap: var(--pile-gap);
+}
+
+.foundation[data-index="0"] {
+    grid-column: 4;
+}
+
+.tableau-row {
+    margin-top: 40px;
+}
+
+/* ==========================================================
+   Card Piles
+   ========================================================== */
+
+.pile {
+    position: relative;
+
+    width: var(--card-width);
+    height: var(--card-height);
+
+    border: 2px dashed rgba(255, 255, 255, 0.35);
+    border-radius: var(--card-radius);
+}
+
+.stock.has-cards {
+    border: none;
+    cursor: pointer;
+}
+
+/* ==========================================================
+   SVG Playing Cards
+   ========================================================== */
+
+.card {
+    position: relative;
+
+    width: 100%;
+    height: 100%;
+
+    border-radius: var(--card-radius);
+    box-shadow: var(--card-shadow);
+
+    cursor: pointer;
+}
+
+.card-image,
+.stock-card-image {
+    display: block;
+
+    width: 100%;
+    height: 100%;
+
+    object-fit: fill;
+    border-radius: var(--card-radius);
+
+    pointer-events: none;
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+/* ==========================================================
+   Tableau Card Stacking
+   ========================================================== */
+
+.tableau .card {
+    position: absolute;
+    top: 0;
+    left: 0;
+
+    transform: translateY(
+        calc(var(--card-index, 0) * var(--tableau-offset))
+    );
+}
+
+/* ==========================================================
+   Card Selection
+   ========================================================== */
+
+.card.selected {
+    outline: 3px solid var(--selection-gold);
+    outline-offset: 2px;
+    z-index: 10;
+}
+
+/* ==========================================================
+   Pause and Victory Overlays
+   ========================================================== */
+
+.pause-overlay[hidden],
+.victory-overlay[hidden] {
+    display: none;
+}
+
+.pause-overlay,
+.victory-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 24px;
+    background-color: rgba(0, 0, 0, 0.65);
+}
+
+.pause-panel,
+.victory-panel {
+    width: 100%;
+    max-width: 420px;
+    padding: 40px 32px;
+
+    border: 2px solid var(--gold);
+    border-radius: 16px;
+
+    background-color: var(--panel-green);
+    color: var(--text-white);
+
+    text-align: center;
+
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+}
+
+.pause-panel h2,
+.victory-panel h2 {
+    margin: 0 0 16px;
+
+    color: #f3d47a;
+    font-size: 38px;
+}
+
+.pause-panel p,
+.victory-panel p {
+    margin: 0 0 28px;
+
+    font-size: 17px;
+    line-height: 1.5;
+}
+
+.resume-button,
+.play-again-button {
+    padding: 12px 28px;
+
+    border: none;
+    border-radius: 8px;
+
+    background-color: #ffffff;
+    color: var(--panel-green);
+
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+
+    cursor: pointer;
+
+    transition: background-color 0.15s ease;
+}
+
+.resume-button:hover,
+.play-again-button:hover {
+    background-color: #e1f2e8;
+}
+
+/* ==========================================================
+   Responsive Layout
+   ========================================================== */
+
+@media (max-width: 900px) {
+    .game-toolbar {
+        padding: 16px;
+        gap: 12px;
+    }
+
+    .game-stats {
+        gap: 12px;
+    }
+
+    .score-display,
+    .timer-button {
+        min-width: 64px;
+        padding: 5px 8px;
+    }
+
+    .score-value,
+    .timer-value {
+        font-size: 18px;
+    }
+
+    .game-board {
+        padding: 20px 16px;
+    }
+
+    .tableau-row {
+        margin-top: 32px;
+    }
+}
+
+@media (max-width: 600px) {
+    .game-toolbar {
+        padding: 12px;
+        gap: 8px;
+    }
+
+    .game-title {
+        font-size: 24px;
+    }
+
+    .game-stats {
+        gap: 6px;
+    }
+
+    .score-display,
+    .timer-button {
+        min-width: 52px;
+        padding: 4px 5px;
+        gap: 3px;
+    }
+
+    .stat-label {
+        font-size: 9px;
+        letter-spacing: 0.5px;
+    }
+
+    .score-value,
+    .timer-value {
+        font-size: 15px;
+    }
+
+    .game-controls {
+        gap: 8px;
+    }
+
+    .game-controls button {
+        padding: 8px 12px;
+        font-size: 13px;
+    }
+
+    .game-board {
+        padding: 16px 8px;
+    }
+
+    .tableau-row {
+        margin-top: 24px;
+    }
+
+    .pause-panel,
+    .victory-panel {
+        padding: 32px 20px;
+    }
+
+    .pause-panel h2,
+    .victory-panel h2 {
+        font-size: 32px;
+    }
+}
+
+/* ==========================================================
+   Mobile Landscape
+   ========================================================== */
+
+@media (orientation: landscape) and (max-height: 500px) {
+    .game-toolbar {
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
+
+    .game-title {
+        font-size: 22px;
+    }
+
+    .game-controls button {
+        padding: 7px 12px;
+    }
+
+    .game-board {
+        padding-top: 12px;
+        padding-bottom: 12px;
+    }
+
+    .tableau-row {
+        margin-top: 16px;
+    }
+}
