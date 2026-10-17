@@ -123,6 +123,21 @@ export class SolitaireRenderer {
 
     this.container.appendChild(board);
 
+    // Portfolio footer
+    const footer = document.createElement('footer');
+    footer.className = 'game-footer';
+
+    footer.append('Made by ');
+
+    const authorLink = document.createElement('a');
+    authorLink.href = 'https://github.com/FredWahab';
+    authorLink.textContent = 'Fred Wahab';
+    authorLink.target = '_blank';
+    authorLink.rel = 'noopener noreferrer';
+
+    footer.appendChild(authorLink);
+    this.container.appendChild(footer);
+
     // Pause overlay
     const pauseOverlay = document.createElement('div');
     pauseOverlay.className = 'pause-overlay';

@@ -55,10 +55,16 @@ body {
 
 .game-title {
     margin: 0;
-    color: var(--text-white);
-    font-size: 30px;
-    font-weight: 700;
+    color: #f8fafc;
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    line-height: 1.15;
     flex-shrink: 0;
+
+    text-shadow:
+        0 2px 3px rgba(0, 0, 0, 0.5),
+        0 0 18px rgba(74, 222, 128, 0.25);
 }
 
 /* Score and timer occupy the center of the toolbar. */
@@ -180,6 +186,7 @@ body {
     width: min(100%, calc(var(--game-width) + 64px));
     margin: 0 auto;
     padding: 32px;
+    padding-bottom: calc(32px + var(--card-height) + 6 * var(--tableau-offset));
 }
 
 .top-row,
@@ -269,6 +276,32 @@ body {
     outline: 3px solid var(--selection-gold);
     outline-offset: 2px;
     z-index: 10;
+}
+
+/* ==========================================================
+   Portfolio Footer
+   ========================================================== */
+
+.game-footer {
+    margin: 20px auto;
+    padding: 8px 16px;
+
+    color: rgba(255, 255, 255, 0.7);
+    font-size: 0.8rem;
+    letter-spacing: 0.03em;
+    text-align: center;
+}
+
+.game-footer a {
+    color: #ffffff;
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.game-footer a:hover,
+.game-footer a:focus-visible {
+    color: #d9b65d;
+    text-decoration: underline;
 }
 
 /* ==========================================================
