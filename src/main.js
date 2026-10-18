@@ -15,8 +15,6 @@ const app = document.querySelector('#app');
 const renderer = new SolitaireRenderer(game, app);
 renderer.createBoard();
 
-// Cache board elements.
-// Rendering replaces cards but preserves pile elements.
 const newGameButton = app.querySelector('.new-game-button');
 const undoButton = app.querySelector('.undo-button');
 const soundButton = app.querySelector('.sound-button');
@@ -27,13 +25,14 @@ const pauseOverlay = app.querySelector('.pause-overlay');
 const resumeButton = app.querySelector('.resume-button');
 const victoryOverlay = app.querySelector('.victory-overlay');
 const playAgainButton = app.querySelector('.play-again-button');
+
 const stockPile = app.querySelector('.stock');
 const wastePile = app.querySelector('.waste');
-const foundationPiles = app.querySelectorAll('.foundation');
-const tableauPiles = app.querySelectorAll('.tableau');
+const foundationPiles = Array.from(app.querySelectorAll('.foundation'));
+const tableauPiles = Array.from(app.querySelectorAll('.tableau'));
 
 // --------------------------------------------------
-// Game Timer
+// Game State and Timer
 // --------------------------------------------------
 
 let elapsedMilliseconds = 0;
@@ -44,6 +43,10 @@ let hasTimerStarted = false;
 let isPaused = false;
 let gameWon = false;
 let isAutoCompleting = false;
+
+function canInteract() {
+  return !isPaused && !gameWon && !isAutoCompleting;
+}
 
 function getElapsedMilliseconds() {
   if (timerStartedAt === null) {
@@ -100,73 +103,55 @@ function resetTimer() {
   updateTimerDisplay();
 }
 
-function pauseGame() {
-  if (isPaused || gameWon || isAutoCompleting) {
-    return;
-  }
-
-  stopTimer();
-  isPaused = true;
-  clearSelection();
-  pauseOverlay.hidden = false;
-}
-
-function resumeGame() {
-  if (!isPaused) {
-    return;
-  }
-
-  isPaused = false;
-  pauseOverlay.hidden = true;
-
-  // Resume only if the timer had already started.
-  if (hasTimerStarted) {
+function onSuccessfulAction() {
+  if (!isPaused && !gameWon) {
     startTimer();
   }
 }
 
-function onSuccessfulAction() {
-  if (isPaused || gameWon) {
+// --------------------------------------------------
+// Drag and Automatic Move State
+// --------------------------------------------------
+
+let dragState = null;
+let lastTap = null;
+
+// Remembers the last tableau destination chosen for
+// each card. The card at the start of a sequence is
+// used to identify that sequence during cycling.
+let automaticMoveHistory = new WeakMap();
+
+const DRAG_THRESHOLD = 5;
+const DOUBLE_TAP_DELAY = 350;
+const DOUBLE_TAP_DISTANCE = 25;
+
+function clearLastTap() {
+  lastTap = null;
+}
+
+function cancelDrag() {
+  if (!dragState) {
     return;
   }
 
-  startTimer();
-}
+  const currentDrag = dragState;
+  dragState = null;
 
-// --------------------------------------------------
-// Card Selection
-// --------------------------------------------------
-
-// Selection formats:
-// { type: 'waste' }
-// { type: 'tableau', pileIndex: 0, cardIndex: 0 }
-// { type: 'foundation', pileIndex: 0 }
-
-let selection = null;
-
-function clearSelection() {
-  selection = null;
-
-  app.querySelectorAll('.card.selected').forEach(card => {
-    card.classList.remove('selected');
+  currentDrag.elements.forEach(element => {
+    element.style.translate = '';
+    element.style.zIndex = '';
+    element.style.pointerEvents = '';
+    element.style.filter = '';
   });
-}
 
-function selectCard(cardElement, newSelection) {
-  const isSameSelection =
-    selection !== null &&
-    selection.type === newSelection.type &&
-    selection.pileIndex === newSelection.pileIndex &&
-    selection.cardIndex === newSelection.cardIndex;
+  const captureElement = currentDrag.captureElement;
 
-  clearSelection();
-
-  if (isSameSelection) {
-    return;
+  if (
+    captureElement?.isConnected &&
+    captureElement.hasPointerCapture(currentDrag.pointerId)
+  ) {
+    captureElement.releasePointerCapture(currentDrag.pointerId);
   }
-
-  selection = newSelection;
-  cardElement.classList.add('selected');
 }
 
 // --------------------------------------------------
@@ -213,8 +198,11 @@ function finishGame() {
   }
 
   gameWon = true;
+
   stopTimer();
-  clearSelection();
+  cancelDrag();
+  clearLastTap();
+
   refreshUI();
 
   audio.victory();
@@ -229,11 +217,11 @@ function wait(milliseconds) {
 
 async function runAutomaticCompletion(moves) {
   isAutoCompleting = true;
-  clearSelection();
+
+  cancelDrag();
+  clearLastTap();
   refreshUI();
 
-  // Save the position before the automated sequence.
-  // Normal Undo history remains untouched until completion.
   const startingState = game.getStateSnapshot();
 
   for (const { tableauIndex, foundationIndex } of moves) {
@@ -243,7 +231,6 @@ async function runAutomaticCompletion(moves) {
     );
 
     if (!moved) {
-      // Restore the board if an unexpected move fails.
       game.stock = startingState.stock;
       game.waste = startingState.waste;
       game.foundations = startingState.foundations;
@@ -258,7 +245,6 @@ async function runAutomaticCompletion(moves) {
     audio.move();
     refreshUI();
 
-    // Show each card being placed into its foundation.
     await wait(130);
   }
 
@@ -272,18 +258,15 @@ async function runAutomaticCompletion(moves) {
 }
 
 function checkForAutomaticCompletion() {
-  if (isPaused || gameWon || isAutoCompleting) {
+  if (!canInteract()) {
     return;
   }
 
-  // A normal final move can already have completed the game.
   if (game.checkWin()) {
     finishGame();
     return;
   }
 
-  // The game model verifies that every remaining card
-  // can legally reach a foundation before we begin.
   const moves = game.getAutoCompleteMoves();
 
   if (moves && moves.length > 0) {
@@ -291,18 +274,64 @@ function checkForAutomaticCompletion() {
   }
 }
 
+function completeMove(moved) {
+  if (!moved) {
+    return false;
+  }
+
+  clearLastTap();
+  onSuccessfulAction();
+
+  audio.move();
+  refreshUI();
+
+  checkForAutomaticCompletion();
+
+  return true;
+}
+
 // --------------------------------------------------
-// Game Controls
+// Pause and Game Controls
 // --------------------------------------------------
+
+function pauseGame() {
+  if (isPaused || gameWon || isAutoCompleting) {
+    return;
+  }
+
+  cancelDrag();
+  clearLastTap();
+  stopTimer();
+
+  isPaused = true;
+  pauseOverlay.hidden = false;
+}
+
+function resumeGame() {
+  if (!isPaused) {
+    return;
+  }
+
+  isPaused = false;
+  pauseOverlay.hidden = true;
+
+  if (hasTimerStarted) {
+    startTimer();
+  }
+}
 
 function startNewGame() {
   if (isAutoCompleting) {
     return;
   }
 
+  cancelDrag();
+  clearLastTap();
+
+  automaticMoveHistory = new WeakMap();
+
   game.newGame();
   resetTimer();
-  clearSelection();
 
   pauseOverlay.hidden = true;
   victoryOverlay.hidden = true;
@@ -314,14 +343,18 @@ newGameButton.addEventListener('click', startNewGame);
 playAgainButton.addEventListener('click', startNewGame);
 
 undoButton.addEventListener('click', () => {
-  if (isPaused || gameWon || isAutoCompleting) {
+  if (!canInteract()) {
     return;
   }
 
+  cancelDrag();
+  clearLastTap();
+
   if (game.undo()) {
+    automaticMoveHistory = new WeakMap();
+
     onSuccessfulAction();
     audio.undo();
-    clearSelection();
     refreshUI();
 
     checkForAutomaticCompletion();
@@ -329,7 +362,7 @@ undoButton.addEventListener('click', () => {
 });
 
 soundButton.addEventListener('click', () => {
-  if (isPaused || gameWon || isAutoCompleting) {
+  if (isAutoCompleting || gameWon) {
     return;
   }
 
@@ -341,173 +374,493 @@ timerButton.addEventListener('click', pauseGame);
 resumeButton.addEventListener('click', resumeGame);
 
 // --------------------------------------------------
-// Stock and Waste Interaction
+// Stock Interaction
 // --------------------------------------------------
 
 stockPile.addEventListener('click', () => {
-  if (isPaused || gameWon || isAutoCompleting) {
+  if (!canInteract()) {
     return;
   }
 
-  clearSelection();
+  cancelDrag();
+  clearLastTap();
 
   if (game.recordMove(() => game.drawCard())) {
     onSuccessfulAction();
     audio.draw();
-    refreshUI();
 
+    refreshUI();
     checkForAutomaticCompletion();
   }
 });
 
-wastePile.addEventListener('click', () => {
+// --------------------------------------------------
+// Drag Source Identification
+// --------------------------------------------------
+
+function getDragSource(cardElement) {
+  if (!cardElement) {
+    return null;
+  }
+
+  const tableauElement = cardElement.closest('.tableau');
+
+  if (tableauElement) {
+    const pileIndex = tableauPiles.indexOf(tableauElement);
+
+    if (pileIndex < 0) {
+      return null;
+    }
+
+    const cardElements = Array.from(
+      tableauElement.querySelectorAll('.card')
+    );
+
+    const cardIndex = cardElements.indexOf(cardElement);
+
+    if (cardIndex < 0) {
+      return null;
+    }
+
+    const movingCards = game.tableau[pileIndex].slice(cardIndex);
+
+    if (
+      movingCards.length === 0 ||
+      !game.isValidSequence(movingCards)
+    ) {
+      return null;
+    }
+
+    return {
+      type: 'tableau',
+      pileIndex,
+      cardIndex,
+      card: movingCards[0],
+      elements: cardElements.slice(cardIndex)
+    };
+  }
+
+  if (wastePile.contains(cardElement)) {
+    if (game.waste.length === 0) {
+      return null;
+    }
+
+    return {
+      type: 'waste',
+      card: game.waste[game.waste.length - 1],
+      elements: [cardElement]
+    };
+  }
+
+  const foundationElement = cardElement.closest('.foundation');
+
+  if (foundationElement) {
+    const pileIndex = foundationPiles.indexOf(foundationElement);
+
+    if (pileIndex < 0) {
+      return null;
+    }
+
+    const foundation = game.foundations[pileIndex];
+
+    if (foundation.length === 0) {
+      return null;
+    }
+
+    return {
+      type: 'foundation',
+      pileIndex,
+      card: foundation[foundation.length - 1],
+      elements: [cardElement]
+    };
+  }
+
+  return null;
+}
+
+// --------------------------------------------------
+// Move Execution
+// --------------------------------------------------
+
+function moveCard(source, destinationType, destinationIndex) {
+  if (!canInteract()) {
+    return false;
+  }
+
+  if (destinationType === 'tableau') {
+    if (
+      destinationIndex < 0 ||
+      destinationIndex >= tableauPiles.length
+    ) {
+      return false;
+    }
+
+    if (source.type === 'tableau') {
+      if (source.pileIndex === destinationIndex) {
+        return false;
+      }
+
+      return game.recordMove(() =>
+        game.moveTableauToTableau(
+          source.pileIndex,
+          source.cardIndex,
+          destinationIndex
+        )
+      );
+    }
+
+    if (source.type === 'waste') {
+      return game.recordMove(() =>
+        game.moveWasteToTableau(destinationIndex)
+      );
+    }
+
+    if (source.type === 'foundation') {
+      return game.recordMove(() =>
+        game.moveFoundationToTableau(
+          source.pileIndex,
+          destinationIndex
+        )
+      );
+    }
+  }
+
+  if (destinationType === 'foundation') {
+    if (
+      destinationIndex < 0 ||
+      destinationIndex >= foundationPiles.length
+    ) {
+      return false;
+    }
+
+    if (source.type === 'waste') {
+      return game.recordMove(() =>
+        game.moveWasteToFoundation(destinationIndex)
+      );
+    }
+
+    if (source.type === 'tableau') {
+      const sourcePile = game.tableau[source.pileIndex];
+
+      // Only a single top card may enter a foundation.
+      if (source.cardIndex !== sourcePile.length - 1) {
+        return false;
+      }
+
+      return game.recordMove(() =>
+        game.moveTableauToFoundation(
+          source.pileIndex,
+          destinationIndex
+        )
+      );
+    }
+  }
+
+  return false;
+}
+
+// --------------------------------------------------
+// Automatic Card Movement
+// --------------------------------------------------
+
+// Double-click or double-tap any valid tableau card,
+// including a card in the middle of a sequence.
+//
+// The clicked card and all cards beneath it move
+// together to the next legal tableau destination.
+//
+// Single cards may also move to foundations.
+//
+// Repeated automatic moves cycle through legal
+// tableau columns.
+
+function autoMoveCard(source) {
+  if (!canInteract() || source.type === 'foundation') {
+    return false;
+  }
+
+  let card;
+  let movingCards;
+
+  if (source.type === 'waste') {
+    card = game.waste[game.waste.length - 1];
+
+    if (!card) {
+      return false;
+    }
+
+    movingCards = [card];
+  } else {
+    const pile = game.tableau[source.pileIndex];
+
+    movingCards = pile.slice(source.cardIndex);
+
+    if (
+      movingCards.length === 0 ||
+      !game.isValidSequence(movingCards)
+    ) {
+      return false;
+    }
+
+    card = movingCards[0];
+  }
+
+  const isSingleCard = movingCards.length === 1;
+
+  // Only single cards can automatically move
+  // to a foundation.
+  if (isSingleCard) {
+    for (let i = 0; i < foundationPiles.length; i++) {
+      if (!game.canMoveToFoundation(card, i)) {
+        continue;
+      }
+
+      const moved = moveCard(source, 'foundation', i);
+
+      if (moved) {
+        return completeMove(true);
+      }
+    }
+  }
+
+  // Find legal tableau destinations for the clicked
+  // card. The game engine validates the actual move
+  // of the complete sequence.
+  const destinations = [];
+
+  for (let i = 0; i < tableauPiles.length; i++) {
+    if (
+      source.type === 'tableau' &&
+      source.pileIndex === i
+    ) {
+      continue;
+    }
+
+    if (game.canMoveToTableau(card, i)) {
+      destinations.push(i);
+    }
+  }
+
+  if (destinations.length === 0) {
+    return false;
+  }
+
+  // Pick the first destination after the last
+  // automatically chosen one. Wrap around when
+  // necessary.
+  const lastDestination = automaticMoveHistory.get(card);
+
+  let nextDestination = destinations[0];
+
+  if (lastDestination !== undefined) {
+    nextDestination =
+      destinations.find(index => index > lastDestination) ??
+      destinations[0];
+  }
+
+  const moved = moveCard(
+    source,
+    'tableau',
+    nextDestination
+  );
+
+  if (moved) {
+    automaticMoveHistory.set(card, nextDestination);
+    return completeMove(true);
+  }
+
+  return false;
+}
+
+// --------------------------------------------------
+// Double-Click / Double-Tap Detection
+// --------------------------------------------------
+
+function handleCardTap(source, x, y) {
+  if (source.type === 'foundation') {
+    clearLastTap();
+    return;
+  }
+
+  const now = performance.now();
+
+  const isDoubleTap =
+    lastTap !== null &&
+    lastTap.card === source.card &&
+    now - lastTap.time <= DOUBLE_TAP_DELAY &&
+    Math.hypot(x - lastTap.x, y - lastTap.y) <= DOUBLE_TAP_DISTANCE;
+
+  if (isDoubleTap) {
+    clearLastTap();
+    autoMoveCard(source);
+    return;
+  }
+
+  lastTap = {
+    card: source.card,
+    time: now,
+    x,
+    y
+  };
+}
+
+// --------------------------------------------------
+// Pointer Down
+// --------------------------------------------------
+
+app.addEventListener('pointerdown', event => {
+  if (!canInteract() || dragState) {
+    return;
+  }
+
+  if (event.button !== 0 || !event.isPrimary) {
+    return;
+  }
+
+  const cardElement = event.target.closest('.card');
+
+  if (!cardElement) {
+    return;
+  }
+
+  const source = getDragSource(cardElement);
+
+  if (!source) {
+    return;
+  }
+
+  event.preventDefault();
+
+  dragState = {
+    ...source,
+    pointerId: event.pointerId,
+    captureElement: cardElement,
+    startX: event.clientX,
+    startY: event.clientY,
+    dragging: false
+  };
+
+  cardElement.setPointerCapture(event.pointerId);
+});
+
+// --------------------------------------------------
+// Pointer Move
+// --------------------------------------------------
+
+document.addEventListener('pointermove', event => {
   if (
-    isPaused ||
-    gameWon ||
-    isAutoCompleting ||
-    game.waste.length === 0
+    !dragState ||
+    event.pointerId !== dragState.pointerId
   ) {
     return;
   }
 
-  const cardElement = wastePile.querySelector('.card');
+  const dx = event.clientX - dragState.startX;
+  const dy = event.clientY - dragState.startY;
 
-  if (cardElement) {
-    selectCard(cardElement, { type: 'waste' });
+  if (
+    !dragState.dragging &&
+    Math.hypot(dx, dy) < DRAG_THRESHOLD
+  ) {
+    return;
+  }
+
+  if (!dragState.dragging) {
+    dragState.dragging = true;
+    clearLastTap();
+  }
+
+  dragState.elements.forEach((element, index) => {
+    element.style.zIndex = String(1000 + index);
+    element.style.translate = `${dx}px ${dy}px`;
+    element.style.pointerEvents = 'none';
+    element.style.filter =
+      'drop-shadow(0 8px 8px rgba(0,0,0,0.3))';
+  });
+});
+
+// --------------------------------------------------
+// Pointer Up / Drop Handling
+// --------------------------------------------------
+
+document.addEventListener('pointerup', event => {
+  if (
+    !dragState ||
+    event.pointerId !== dragState.pointerId
+  ) {
+    return;
+  }
+
+  const source = dragState;
+  const wasDragging = source.dragging;
+
+  const target = wasDragging
+    ? document.elementFromPoint(event.clientX, event.clientY)
+    : null;
+
+  const tableauDestination = target?.closest('.tableau');
+  const foundationDestination = target?.closest('.foundation');
+
+  cancelDrag();
+
+  if (!canInteract()) {
+    return;
+  }
+
+  if (!wasDragging) {
+    handleCardTap(
+      source,
+      event.clientX,
+      event.clientY
+    );
+    return;
+  }
+
+  let moved = false;
+
+  if (tableauDestination) {
+    const toIndex = tableauPiles.indexOf(
+      tableauDestination
+    );
+
+    moved = moveCard(source, 'tableau', toIndex);
+  } else if (foundationDestination) {
+    const foundationIndex = foundationPiles.indexOf(
+      foundationDestination
+    );
+
+    moved = moveCard(
+      source,
+      'foundation',
+      foundationIndex
+    );
+  }
+
+  if (moved) {
+    completeMove(true);
   }
 });
 
 // --------------------------------------------------
-// Tableau Interaction
+// Pointer Cancellation
 // --------------------------------------------------
 
-tableauPiles.forEach((pile, tableauIndex) => {
-  pile.addEventListener('click', event => {
-    if (isPaused || gameWon || isAutoCompleting) {
-      return;
-    }
-
-    const cardElement = event.target.closest('.card');
-
-    // Attempt to move the selected card to this tableau column.
-    if (selection !== null) {
-      let moved = false;
-
-      if (selection.type === 'waste') {
-        moved = game.recordMove(() =>
-          game.moveWasteToTableau(tableauIndex)
-        );
-      } else if (selection.type === 'foundation') {
-        moved = game.recordMove(() =>
-          game.moveFoundationToTableau(
-            selection.pileIndex,
-            tableauIndex
-          )
-        );
-      } else if (
-        selection.type === 'tableau' &&
-        selection.pileIndex !== tableauIndex
-      ) {
-        moved = game.recordMove(() =>
-          game.moveTableauToTableau(
-            selection.pileIndex,
-            selection.cardIndex,
-            tableauIndex
-          )
-        );
-      }
-
-      if (moved) {
-        onSuccessfulAction();
-        audio.move();
-        clearSelection();
-        refreshUI();
-
-        checkForAutomaticCompletion();
-        return;
-      }
-    }
-
-    if (!cardElement) {
-      return;
-    }
-
-    const cards = game.tableau[tableauIndex];
-    const cardElements = Array.from(pile.querySelectorAll('.card'));
-    const cardIndex = cardElements.indexOf(cardElement);
-
-    if (cardIndex === -1 || !cards[cardIndex].faceUp) {
-      return;
-    }
-
-    selectCard(cardElement, {
-      type: 'tableau',
-      pileIndex: tableauIndex,
-      cardIndex
-    });
-  });
+document.addEventListener('pointercancel', event => {
+  if (
+    dragState &&
+    event.pointerId === dragState.pointerId
+  ) {
+    cancelDrag();
+    clearLastTap();
+  }
 });
 
 // --------------------------------------------------
-// Foundation Interaction
+// Browser Drag Prevention
 // --------------------------------------------------
 
-foundationPiles.forEach((pile, foundationIndex) => {
-  pile.addEventListener('click', () => {
-    if (isPaused || gameWon || isAutoCompleting) {
-      return;
-    }
-
-    // Select or deselect a foundation card.
-    if (selection === null || selection.type === 'foundation') {
-      const cardElement = pile.querySelector('.card');
-
-      if (cardElement) {
-        selectCard(cardElement, {
-          type: 'foundation',
-          pileIndex: foundationIndex
-        });
-      } else {
-        clearSelection();
-      }
-
-      return;
-    }
-
-    // Attempt to move the selected card into the foundation.
-    let moved = false;
-
-    if (selection.type === 'waste') {
-      moved = game.recordMove(() =>
-        game.moveWasteToFoundation(foundationIndex)
-      );
-    } else if (selection.type === 'tableau') {
-      const cards = game.tableau[selection.pileIndex];
-
-      if (selection.cardIndex === cards.length - 1) {
-        moved = game.recordMove(() =>
-          game.moveTableauToFoundation(
-            selection.pileIndex,
-            foundationIndex
-          )
-        );
-      }
-    }
-
-    clearSelection();
-
-    if (!moved) {
-      return;
-    }
-
-    onSuccessfulAction();
-    refreshUI();
-
-    if (game.checkWin()) {
-      finishGame();
-    } else {
-      audio.move();
-      checkForAutomaticCompletion();
-    }
-  });
+app.addEventListener('dragstart', event => {
+  if (event.target.closest('.card')) {
+    event.preventDefault();
+  }
 });

@@ -68,6 +68,7 @@ body {
 }
 
 /* Score and timer occupy the center of the toolbar. */
+
 .game-stats {
     display: flex;
     align-items: center;
@@ -111,6 +112,7 @@ body {
 }
 
 /* The timer doubles as the Pause button. */
+
 .timer-button {
     font-family: inherit;
     cursor: pointer;
@@ -186,7 +188,9 @@ body {
     width: min(100%, calc(var(--game-width) + 64px));
     margin: 0 auto;
     padding: 32px;
-    padding-bottom: calc(32px + var(--card-height) + 6 * var(--tableau-offset));
+    padding-bottom: calc(
+        32px + var(--card-height) + 6 * var(--tableau-offset)
+    );
 }
 
 .top-row,
@@ -236,7 +240,7 @@ body {
     border-radius: var(--card-radius);
     box-shadow: var(--card-shadow);
 
-    cursor: pointer;
+    cursor: grab;
 }
 
 .card-image,
@@ -269,13 +273,29 @@ body {
 }
 
 /* ==========================================================
-   Card Selection
+   Card Dragging
    ========================================================== */
 
-.card.selected {
-    outline: 3px solid var(--selection-gold);
-    outline-offset: 2px;
-    z-index: 10;
+/*
+   Disable browser touch gestures and text selection
+   on movable cards so Pointer Events can control
+   dragging on both desktop and mobile.
+*/
+
+.tableau .card,
+.waste .card,
+.foundation .card {
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: none;
+    cursor: grab;
+}
+
+.tableau .card:active,
+.waste .card:active,
+.foundation .card:active {
+    cursor: grabbing;
 }
 
 /* ==========================================================
