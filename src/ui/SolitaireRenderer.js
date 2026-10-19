@@ -13,7 +13,6 @@ export class SolitaireRenderer {
   // --------------------------------------------------
 
   createBoard() {
-    // Game toolbar
     const toolbar = document.createElement('header');
     toolbar.className = 'game-toolbar';
 
@@ -21,7 +20,7 @@ export class SolitaireRenderer {
     title.className = 'game-title';
     title.textContent = 'Solitaire';
 
-    // Centered score and timer display
+    // Score and timer
     const stats = document.createElement('div');
     stats.className = 'game-stats';
 
@@ -89,7 +88,7 @@ export class SolitaireRenderer {
 
     this.container.appendChild(toolbar);
 
-    // Main board structure
+    // Main board
     const board = document.createElement('main');
     board.className = 'game-board';
 
@@ -99,7 +98,6 @@ export class SolitaireRenderer {
     const tableauRow = document.createElement('section');
     tableauRow.className = 'tableau-row';
 
-    // Stock and waste piles
     const stockPile = this.createPile('stock');
     const wastePile = this.createPile('waste');
 
@@ -108,14 +106,12 @@ export class SolitaireRenderer {
 
     // Four foundation piles
     for (let i = 0; i < 4; i++) {
-      const foundationPile = this.createPile('foundation', i);
-      topRow.appendChild(foundationPile);
+      topRow.appendChild(this.createPile('foundation', i));
     }
 
     // Seven tableau columns
     for (let i = 0; i < 7; i++) {
-      const tableauPile = this.createPile('tableau', i);
-      tableauRow.appendChild(tableauPile);
+      tableauRow.appendChild(this.createPile('tableau', i));
     }
 
     board.appendChild(topRow);
@@ -126,7 +122,6 @@ export class SolitaireRenderer {
     // Portfolio footer
     const footer = document.createElement('footer');
     footer.className = 'game-footer';
-
     footer.append('Made by ');
 
     const authorLink = document.createElement('a');
@@ -262,13 +257,23 @@ export class SolitaireRenderer {
     this.renderTableau();
   }
 
+  // --------------------------------------------------
+  // Stock Pile
+  // --------------------------------------------------
+
   renderStock() {
     const stockPile = this.container.querySelector('.stock');
     stockPile.innerHTML = '';
 
     const hasCards = this.game.stock.length > 0;
+
     stockPile.classList.toggle('has-cards', hasCards);
 
+    // When the final stock card is drawn, the stock
+    // becomes visibly empty, even if waste cards remain.
+    //
+    // Clicking the empty stock still allows the game
+    // engine to recycle the waste into the stock.
     if (!hasCards) {
       return;
     }
@@ -282,10 +287,63 @@ export class SolitaireRenderer {
     stockPile.appendChild(cardBack);
   }
 
+  // --------------------------------------------------
+  // Waste Pile
+  // --------------------------------------------------
+
   renderWaste() {
     const wastePile = this.container.querySelector('.waste');
-    this.renderTopCard(wastePile, this.game.waste);
+    wastePile.innerHTML = '';
+
+    const cards = this.game.waste;
+
+    if (cards.length === 0) {
+      return;
+    }
+
+    // Display a card back beneath the playable waste
+    // card when there are additional cards in the pile.
+    //
+    // This visual backing stays in place while the
+    // top card is dragged away.
+
+    if (cards.length > 1) {
+      const backingCard = document.createElement('img');
+
+      backingCard.className = 'stock-card-image';
+      backingCard.src = this.getCardBackPath();
+      backingCard.alt = '';
+      backingCard.draggable = false;
+
+      backingCard.style.position = 'absolute';
+      backingCard.style.top = '0';
+      backingCard.style.left = '0';
+      backingCard.style.width = '100%';
+      backingCard.style.height = '100%';
+      backingCard.style.pointerEvents = 'none';
+      backingCard.style.zIndex = '0';
+
+      wastePile.appendChild(backingCard);
+    }
+
+    // Always show the top waste card face-up.
+    // Offset it slightly when a stack exists so
+    // the blue card back remains visible underneath.
+
+    const topCard = cards[cards.length - 1];
+    const topCardElement = this.createCardElement(topCard);
+
+    topCardElement.style.position = 'absolute';
+    topCardElement.style.top = cards.length > 1 ? '3px' : '0';
+    topCardElement.style.left = cards.length > 1 ? '3px' : '0';
+    topCardElement.style.zIndex = '1';
+
+    wastePile.appendChild(topCardElement);
   }
+
+  // --------------------------------------------------
+  // Foundations
+  // --------------------------------------------------
 
   renderFoundations() {
     const foundationPiles =
@@ -299,6 +357,10 @@ export class SolitaireRenderer {
     });
   }
 
+  // --------------------------------------------------
+  // Tableau
+  // --------------------------------------------------
+
   renderTableau() {
     const tableauPiles =
       this.container.querySelectorAll('.tableau');
@@ -310,7 +372,6 @@ export class SolitaireRenderer {
       cards.forEach((card, cardIndex) => {
         const cardElement = this.createCardElement(card);
 
-        // CSS uses this value to stack tableau cards.
         cardElement.style.setProperty('--card-index', cardIndex);
         pileElement.appendChild(cardElement);
       });
