@@ -1,0 +1,31 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Solitaire playing card">
+
+  <!-- Green table -->
+  <rect width="64" height="64" rx="12" fill="#146b42"></rect>
+
+  <!-- Card shadow -->
+  <rect x="15" y="7" width="34" height="50" rx="5" fill="#081c14" opacity="0.25" transform="translate(2 2)"></rect>
+
+  <!-- White playing card -->
+  <rect x="15" y="7" width="34" height="50" rx="5" fill="#ffffff" stroke="#e4e7e7" stroke-width="1"></rect>
+
+  <!-- Spade symbol -->
+  <path d="M32 17
+       C28 23 21 27 21 34
+       c0 5 4 8 8 8
+       1.6 0 2.6-.6 3-1.5
+       .4.9 1.4 1.5 3 1.5
+       4 0 8-3 8-8
+       0-7-7-11-11-17Z" fill="#172227"></path>
+
+  <!-- Spade stem -->
+  <path d="M30 40
+       c.2 4-1.3 7-4 9
+       h12
+       c-2.7-2-4.2-5-4-9Z" fill="#172227"></path>
+
+  <!-- Ace -->
+  <text x="20" y="20" font-family="Arial,sans-serif" font-size="10" font-weight="700" fill="#172227">A</text>
+
+</svg>
