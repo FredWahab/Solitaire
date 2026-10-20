@@ -1,4 +1,3 @@
-
 import './style.css';
 import { SolitaireGame } from './game/SolitaireGame.js';
 import { SolitaireRenderer } from './ui/SolitaireRenderer.js';
@@ -11,25 +10,50 @@ import { SolitaireAudio } from './game/SolitaireAudio.js';
 const game = new SolitaireGame();
 const audio = new SolitaireAudio();
 const app = document.querySelector('#app');
-
 const renderer = new SolitaireRenderer(game, app);
+
 renderer.createBoard();
 
-const newGameButton = app.querySelector('.new-game-button');
-const undoButton = app.querySelector('.undo-button');
-const soundButton = app.querySelector('.sound-button');
-const scoreValue = app.querySelector('.score-value');
-const timerButton = app.querySelector('.timer-button');
-const timerValue = app.querySelector('.timer-value');
-const pauseOverlay = app.querySelector('.pause-overlay');
-const resumeButton = app.querySelector('.resume-button');
-const victoryOverlay = app.querySelector('.victory-overlay');
-const playAgainButton = app.querySelector('.play-again-button');
+const $ = selector => app.querySelector(selector);
 
-const stockPile = app.querySelector('.stock');
-const wastePile = app.querySelector('.waste');
-const foundationPiles = Array.from(app.querySelectorAll('.foundation'));
-const tableauPiles = Array.from(app.querySelectorAll('.tableau'));
+const newGameButton = $('.new-game-button');
+const undoButton = $('.undo-button');
+const soundButton = $('.sound-button');
+const modeButton = $('.mode-button');
+const helpButton = $('.help-button');
+const scoreValue = $('.score-value');
+const timerButton = $('.timer-button');
+const timerValue = $('.timer-value');
+const pauseOverlay = $('.pause-overlay');
+const resumeButton = $('.resume-button');
+const victoryOverlay = $('.victory-overlay');
+const playAgainButton = $('.play-again-button');
+
+const modeOverlay = $('.mode-overlay');
+const modeCloseButton = $('.mode-close-button');
+const modeStartButton = $('.mode-start-button');
+const modeStatus = $('.mode-status');
+const drawModeInputs = Array.from(
+  app.querySelectorAll('input[name="draw-mode"]')
+);
+
+const helpOverlay = $('.help-overlay');
+const helpCloseButton = $('.help-close-button');
+const helpBackButton = $('.help-back-button');
+const helpNextButton = $('.help-next-button');
+const helpHeading = $('.help-heading');
+const helpText = $('.help-text');
+const helpVisual = $('.help-visual');
+const helpProgress = $('.help-progress');
+
+const stockPile = $('.stock');
+const wastePile = $('.waste');
+const foundationPiles = Array.from(
+  app.querySelectorAll('.foundation')
+);
+const tableauPiles = Array.from(
+  app.querySelectorAll('.tableau')
+);
 
 // --------------------------------------------------
 // Game State
@@ -51,17 +75,23 @@ let lastTap = null;
 let automaticMoveHistory = new WeakMap();
 let renderVersion = 0;
 
-const DRAG_THRESHOLD = 5;
-const DOUBLE_TAP_DELAY = 450;
-const DOUBLE_TAP_DISTANCE = 36;
-const AUTO_MOVE_DURATION = 180;
-
-// Victory animation state
 let victoryAnimationFrame = null;
 let victoryCanvas = null;
 let victoryDialogTimeout = null;
 
+let activeDialog = null;
+let helpStep = 0;
+let dialogWasTiming = false;
+let dialogFocusReturn = null;
+
+const DRAG_THRESHOLD = 5;
+const DOUBLE_TAP_DELAY = 450;
+const DOUBLE_TAP_DISTANCE = 36;
+const AUTO_MOVE_DURATION = 180;
 const VICTORY_DURATION = 1500;
+
+const storedMode = localStorage.getItem('solitaire-draw-mode');
+let selectedDrawCount = storedMode === '3' ? 3 : 1;
 
 function canInteract() {
   return (
@@ -69,8 +99,15 @@ function canInteract() {
     !isPaused &&
     !gameWon &&
     !isAutoCompleting &&
-    !isDealing
+    !isDealing &&
+    !activeDialog
   );
+}
+
+function isReducedMotion() {
+  return window.matchMedia(
+    '(prefers-reduced-motion: reduce)'
+  ).matches;
 }
 
 // --------------------------------------------------
@@ -92,7 +129,14 @@ function updateTimerDisplay() {
 }
 
 function startTimer() {
-  if (timerStartedAt !== null || isPaused || gameWon) return;
+  if (
+    timerStartedAt !== null ||
+    isPaused ||
+    gameWon ||
+    activeDialog
+  ) {
+    return;
+  }
 
   hasTimerStarted = true;
   timerStartedAt = performance.now();
@@ -134,7 +178,7 @@ function onSuccessfulAction() {
 }
 
 // --------------------------------------------------
-// Interface
+// Interface Helpers
 // --------------------------------------------------
 
 function clearLastTap() {
@@ -170,31 +214,70 @@ function updateControls() {
     game.history.length === 0 ||
     isAutoCompleting ||
     isDealing ||
+    gameWon ||
+    Boolean(activeDialog);
+
+  newGameButton.disabled =
+    isAutoCompleting ||
+    isDealing ||
+    Boolean(activeDialog);
+
+  soundButton.disabled =
+    isAutoCompleting ||
     gameWon;
 
-  newGameButton.disabled = isAutoCompleting || isDealing;
+  modeButton.disabled =
+    isAutoCompleting ||
+    isDealing ||
+    Boolean(activeDialog);
 
-  soundButton.disabled = isAutoCompleting || gameWon;
+  helpButton.disabled =
+    isAutoCompleting ||
+    isDealing ||
+    Boolean(activeDialog);
 
   timerButton.disabled =
     !hasGameStarted ||
     isAutoCompleting ||
     isDealing ||
-    gameWon;
+    gameWon ||
+    Boolean(activeDialog);
+
+  const modeLabel = `Draw ${selectedDrawCount}`;
+
+  modeButton.title = `Game mode: ${modeLabel}`;
+  modeButton.setAttribute(
+    'aria-label',
+    `Game mode, ${modeLabel}`
+  );
 }
 
 function updateSoundButton() {
-  soundButton.textContent = audio.muted ? 'Sound Off' : 'Sound On';
-  soundButton.setAttribute('aria-pressed', String(audio.muted));
+  soundButton.textContent =
+    audio.muted ? 'Sound Off' : 'Sound On';
+
+  soundButton.setAttribute(
+    'aria-pressed',
+    String(!audio.muted)
+  );
+}
+
+function refreshUI() {
+  renderVersion += 1;
+
+  renderer.render();
+  updateControls();
+
+  scoreValue.textContent = String(game.score);
 }
 
 // --------------------------------------------------
-// Initial Table Setup
+// Undealt Initial Table
 // --------------------------------------------------
 
-// SolitaireGame automatically deals cards in its constructor.
-// Gather them into the stock so the page initially shows
-// an undealt deck. New Game will generate a fresh shuffle.
+// SolitaireGame creates a dealt game in its constructor.
+// Collect its cards into the stock so the initial screen
+// displays a single undealt deck.
 
 game.stock.push(...game.tableau.flat());
 
@@ -208,18 +291,278 @@ game.foundations = Array.from({ length: 4 }, () => []);
 game.history = [];
 game.score = 0;
 
-function refreshUI() {
-  renderVersion += 1;
-
-  renderer.render();
-  updateControls();
-
-  scoreValue.textContent = String(game.score);
-}
-
 refreshUI();
 updateSoundButton();
 updateTimerDisplay();
+
+// --------------------------------------------------
+// Mode Dialog
+// --------------------------------------------------
+
+function updateModeDialog() {
+  drawModeInputs.forEach(input => {
+    input.checked =
+      Number(input.value) === selectedDrawCount;
+  });
+
+  if (!hasGameStarted) {
+    modeStatus.textContent =
+      `Selected: Draw ${selectedDrawCount}. ` +
+      'Click New Game to begin.';
+  } else {
+    modeStatus.textContent =
+      `Current game: Draw ${game.drawCount}. ` +
+      `Next game: Draw ${selectedDrawCount}.`;
+  }
+}
+
+function openDialog(type) {
+  if (
+    isDealing ||
+    isAutoCompleting ||
+    activeDialog
+  ) {
+    return;
+  }
+
+  cancelDrag();
+  clearLastTap();
+
+  dialogFocusReturn = document.activeElement;
+  dialogWasTiming = timerStartedAt !== null;
+
+  if (dialogWasTiming) {
+    stopTimer();
+  }
+
+  activeDialog = type;
+
+  if (type === 'mode') {
+    updateModeDialog();
+    modeOverlay.hidden = false;
+    modeCloseButton.focus();
+  } else {
+    helpStep = 0;
+    renderHelpStep();
+    helpOverlay.hidden = false;
+    helpNextButton.focus();
+  }
+
+  updateControls();
+}
+
+function closeDialog() {
+  if (!activeDialog) return;
+
+  activeDialog = null;
+  modeOverlay.hidden = true;
+  helpOverlay.hidden = true;
+
+  if (
+    dialogWasTiming &&
+    !isPaused &&
+    !gameWon &&
+    hasGameStarted
+  ) {
+    startTimer();
+  }
+
+  dialogWasTiming = false;
+  updateControls();
+
+  if (dialogFocusReturn?.isConnected) {
+    dialogFocusReturn.focus();
+  }
+
+  dialogFocusReturn = null;
+}
+
+modeButton.addEventListener('click', () => {
+  openDialog('mode');
+});
+
+modeCloseButton.addEventListener('click', closeDialog);
+
+drawModeInputs.forEach(input => {
+  input.addEventListener('change', () => {
+    selectedDrawCount =
+      Number(input.value) === 3 ? 3 : 1;
+
+    localStorage.setItem(
+      'solitaire-draw-mode',
+      String(selectedDrawCount)
+    );
+
+    updateModeDialog();
+    updateControls();
+  });
+});
+
+modeStartButton.addEventListener('click', () => {
+  closeDialog();
+  startNewGame();
+});
+
+// --------------------------------------------------
+// Interactive Tutorial
+// --------------------------------------------------
+
+const tutorialSteps = [
+  {
+    title: 'The Goal',
+    visual: 'A♠  2♠  3♠  →  K♠',
+    text:
+      'Move all 52 cards into the four foundation piles. ' +
+      'Each foundation builds from Ace through King in one suit.'
+  },
+  {
+    title: 'The Seven Tableau Columns',
+    visual: '7   6   5   4   3   2   1',
+    text:
+      'Seven columns form the main playing area. ' +
+      'At the start, only the top card of each column is face-up. ' +
+      'Move cards away to uncover hidden cards.'
+  },
+  {
+    title: 'Alternating Colors',
+    visual: 'K♠  Q♥  J♣  10♦',
+    text:
+      'Build tableau columns downward in rank, alternating ' +
+      'red and black. For example, a red Queen can go on ' +
+      'a black King.'
+  },
+  {
+    title: 'Move Sequences',
+    visual: '9♣  8♥  7♠',
+    text:
+      'Drag a face-up card and every card below it together, ' +
+      'provided the sequence descends and alternates colors. ' +
+      'Double-click or double-tap to try an automatic move.'
+  },
+  {
+    title: 'Stock and Waste',
+    visual: '▣  →  A♥',
+    text:
+      'Click the face-down stock to reveal cards in the waste. ' +
+      'Only the top waste card is playable. When the stock is ' +
+      'empty, click it to recycle the waste.'
+  },
+  {
+    title: 'Draw 1 or Draw 3',
+    visual: '1  /  3',
+    text:
+      'Draw 1 reveals one stock card per click. Draw 3 reveals ' +
+      'up to three cards, making the game more challenging. ' +
+      'Choose the mode from the Mode button before a new deal. ' +
+      'Both modes allow unlimited passes through the stock.'
+  },
+  {
+    title: 'Foundations and Kings',
+    visual: 'A♥  2♥  3♥  4♥',
+    text:
+      'Build each foundation upward in the same suit. ' +
+      'Only Kings, or valid sequences starting with Kings, ' +
+      'can move into empty tableau columns.'
+  },
+  {
+    title: 'Useful Controls',
+    visual: '↻   ↶   ♫   ⚙   ?',
+    text:
+      'New Game reshuffles the deck. Undo reverses a move. ' +
+      'Sound controls audio. Mode changes the next-game ' +
+      'draw setting. The timer can also pause and resume.'
+  },
+  {
+    title: 'You Are Ready!',
+    visual: '♠  ♥  ♣  ♦',
+    text:
+      'Start a game with New Game or click the undealt stock. ' +
+      'Move the cards carefully, uncover the hidden ones, ' +
+      'and complete all four foundations to win.'
+  }
+];
+
+function renderHelpStep() {
+  const step = tutorialSteps[helpStep];
+
+  helpProgress.textContent =
+    `Step ${helpStep + 1} of ${tutorialSteps.length}`;
+
+  helpVisual.textContent = step.visual;
+  helpHeading.textContent = step.title;
+  helpText.textContent = step.text;
+
+  helpBackButton.disabled = helpStep === 0;
+
+  helpNextButton.textContent =
+    helpStep === tutorialSteps.length - 1
+      ? 'Finish'
+      : 'Next';
+}
+
+helpButton.addEventListener('click', () => {
+  openDialog('help');
+});
+
+helpCloseButton.addEventListener('click', closeDialog);
+
+helpBackButton.addEventListener('click', () => {
+  if (helpStep > 0) {
+    helpStep -= 1;
+    renderHelpStep();
+  }
+});
+
+helpNextButton.addEventListener('click', () => {
+  if (helpStep === tutorialSteps.length - 1) {
+    closeDialog();
+  } else {
+    helpStep += 1;
+    renderHelpStep();
+  }
+});
+
+// Dialog keyboard support
+document.addEventListener('keydown', event => {
+  if (!activeDialog) return;
+
+  if (event.key === 'Escape') {
+    closeDialog();
+    return;
+  }
+
+  if (event.key !== 'Tab') return;
+
+  const overlay =
+    activeDialog === 'mode'
+      ? modeOverlay
+      : helpOverlay;
+
+  const focusable = Array.from(
+    overlay.querySelectorAll(
+      'button:not(:disabled), input:not(:disabled)'
+    )
+  );
+
+  if (!focusable.length) return;
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+
+  if (
+    event.shiftKey &&
+    document.activeElement === first
+  ) {
+    event.preventDefault();
+    last.focus();
+  } else if (
+    !event.shiftKey &&
+    document.activeElement === last
+  ) {
+    event.preventDefault();
+    first.focus();
+  }
+});
 
 // --------------------------------------------------
 // Victory Confetti
@@ -245,11 +588,7 @@ function stopVictoryCelebration() {
 function playVictoryConfetti() {
   stopVictoryCelebration();
 
-  if (
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
-  ) {
-    return 0;
-  }
+  if (isReducedMotion()) return 0;
 
   const canvas = document.createElement('canvas');
   const context = canvas.getContext('2d');
@@ -258,12 +597,14 @@ function playVictoryConfetti() {
 
   victoryCanvas = canvas;
 
-  canvas.style.position = 'fixed';
-  canvas.style.inset = '0';
-  canvas.style.width = '100%';
-  canvas.style.height = '100%';
-  canvas.style.pointerEvents = 'none';
-  canvas.style.zIndex = '99';
+  Object.assign(canvas.style, {
+    position: 'fixed',
+    inset: '0',
+    width: '100%',
+    height: '100%',
+    pointerEvents: 'none',
+    zIndex: '99'
+  });
 
   document.body.appendChild(canvas);
 
@@ -290,9 +631,8 @@ function playVictoryConfetti() {
   const startedAt = performance.now();
 
   function animate(now) {
-    const elapsed = now - startedAt;
     const progress = Math.min(
-      elapsed / VICTORY_DURATION,
+      (now - startedAt) / VICTORY_DURATION,
       1
     );
 
@@ -314,20 +654,17 @@ function playVictoryConfetti() {
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
 
-    const opacity = progress > 0.8
-      ? (1 - progress) / 0.2
-      : 1;
-
-    context.globalAlpha = Math.max(0, opacity);
+    context.globalAlpha =
+      progress > 0.8
+        ? Math.max(0, (1 - progress) / 0.2)
+        : 1;
 
     particles.forEach(particle => {
-      const x = (
-        particle.x + particle.drift * progress
-      ) * width;
+      const x =
+        (particle.x + particle.drift * progress) * width;
 
-      const y = (
-        particle.y + particle.speed * progress * 3
-      ) * height;
+      const y =
+        (particle.y + particle.speed * progress * 3) * height;
 
       context.save();
       context.translate(x, y);
@@ -363,7 +700,6 @@ function playVictoryConfetti() {
   }
 
   victoryAnimationFrame = requestAnimationFrame(animate);
-
   return VICTORY_DURATION;
 }
 
@@ -382,10 +718,8 @@ function finishGame() {
 
   refreshUI();
 
-  // Play the existing victory sound.
   audio.victory();
 
-  // Celebrate before displaying the victory panel.
   const duration = playVictoryConfetti();
 
   if (duration === 0) {
@@ -420,7 +754,6 @@ async function playDealAnimation(playSound = false) {
     Array.from(pile.querySelectorAll('.card'))
   );
 
-  // Hide the already-rendered cards until they land.
   tableauCards.flat().forEach(card => {
     card.style.visibility = 'hidden';
   });
@@ -429,11 +762,7 @@ async function playDealAnimation(playSound = false) {
     audio.start();
   }
 
-  const reduceMotion = window.matchMedia(
-    '(prefers-reduced-motion: reduce)'
-  ).matches;
-
-  if (reduceMotion) {
+  if (isReducedMotion()) {
     tableauCards.flat().forEach(card => {
       card.style.visibility = '';
     });
@@ -445,10 +774,8 @@ async function playDealAnimation(playSound = false) {
 
   const stockRect = stockPile.getBoundingClientRect();
   const cardBackPath = renderer.getCardBackPath();
-
   const animations = [];
 
-  // Deal in rounds across the seven tableau columns.
   for (let row = 0; row < 7; row++) {
     for (let column = row; column < 7; column++) {
       const actualCard = tableauCards[column][row];
@@ -460,13 +787,15 @@ async function playDealAnimation(playSound = false) {
       const flyingCard = document.createElement('div');
       flyingCard.className = 'card';
 
-      flyingCard.style.position = 'fixed';
-      flyingCard.style.left = `${destination.left}px`;
-      flyingCard.style.top = `${destination.top}px`;
-      flyingCard.style.width = `${destination.width}px`;
-      flyingCard.style.height = `${destination.height}px`;
-      flyingCard.style.zIndex = '1000';
-      flyingCard.style.pointerEvents = 'none';
+      Object.assign(flyingCard.style, {
+        position: 'fixed',
+        left: `${destination.left}px`,
+        top: `${destination.top}px`,
+        width: `${destination.width}px`,
+        height: `${destination.height}px`,
+        zIndex: '1000',
+        pointerEvents: 'none'
+      });
 
       const image = document.createElement('img');
       image.className = 'card-image';
@@ -496,14 +825,14 @@ async function playDealAnimation(playSound = false) {
         }
       );
 
-      const finished = animation.finished
-        .catch(() => {})
-        .then(() => {
-          flyingCard.remove();
-          actualCard.style.visibility = '';
-        });
-
-      animations.push(finished);
+      animations.push(
+        animation.finished
+          .catch(() => {})
+          .then(() => {
+            flyingCard.remove();
+            actualCard.style.visibility = '';
+          })
+      );
 
       await wait(65);
     }
@@ -514,6 +843,10 @@ async function playDealAnimation(playSound = false) {
   isDealing = false;
   updateControls();
 }
+
+// --------------------------------------------------
+// Automatic Completion
+// --------------------------------------------------
 
 async function runAutomaticCompletion(moves) {
   isAutoCompleting = true;
@@ -591,14 +924,15 @@ function animateAutomaticMove(
     !sourceRects ||
     !sourceRects.length ||
     typeof Element.prototype.animate !== 'function' ||
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    isReducedMotion()
   ) {
     return [];
   }
 
-  const destination = destinationType === 'foundation'
-    ? foundationPiles[destinationIndex]
-    : tableauPiles[destinationIndex];
+  const destination =
+    destinationType === 'foundation'
+      ? foundationPiles[destinationIndex]
+      : tableauPiles[destinationIndex];
 
   if (!destination) return [];
 
@@ -617,7 +951,6 @@ function animateAutomaticMove(
     const dx = start.left - end.left;
     const dy = start.top - end.top;
 
-    // 'translate' preserves the tableau's CSS transform.
     return element.animate(
       [
         { translate: `${dx}px ${dy}px` },
@@ -670,7 +1003,15 @@ function completeMove(moved, animation = null) {
 // --------------------------------------------------
 
 function pauseGame() {
-  if (isPaused || gameWon || isAutoCompleting) return;
+  if (
+    isPaused ||
+    gameWon ||
+    isAutoCompleting ||
+    isDealing ||
+    activeDialog
+  ) {
+    return;
+  }
 
   cancelDrag();
   clearLastTap();
@@ -692,9 +1033,14 @@ function resumeGame() {
 }
 
 function startNewGame() {
-  if (isAutoCompleting || isDealing) return;
+  if (
+    isAutoCompleting ||
+    isDealing ||
+    activeDialog
+  ) {
+    return;
+  }
 
-  // Remove any confetti or delayed victory panel.
   stopVictoryCelebration();
 
   cancelDrag();
@@ -702,9 +1048,7 @@ function startNewGame() {
 
   automaticMoveHistory = new WeakMap();
 
-  // Create a new shuffled and dealt game.
-  game.newGame();
-
+  game.newGame(selectedDrawCount);
   hasGameStarted = true;
 
   resetTimer();
@@ -714,7 +1058,6 @@ function startNewGame() {
 
   refreshUI();
 
-  // Animate the opening deal and play its existing sound.
   void playDealAnimation(true);
 }
 
@@ -753,22 +1096,34 @@ resumeButton.addEventListener('click', resumeGame);
 // --------------------------------------------------
 
 stockPile.addEventListener('click', () => {
-  // Before the first deal, clicking the deck starts
-  // a new game instead of drawing a card.
+  // Clicking the initial deck starts the first game.
   if (!hasGameStarted) {
-    startNewGame();
+    if (!activeDialog) {
+      startNewGame();
+    }
+
     return;
   }
 
-  // After the initial deal, normal stock behavior applies.
   if (!canInteract()) return;
 
   cancelDrag();
   clearLastTap();
 
+  const recycling = game.stock.length === 0;
+
   if (game.recordMove(() => game.drawCard())) {
     onSuccessfulAction();
-    audio.draw();
+
+    if (
+      recycling &&
+      typeof audio.recycle === 'function'
+    ) {
+      audio.recycle();
+    } else {
+      audio.draw();
+    }
+
     refreshUI();
     checkForAutomaticCompletion();
   }
@@ -866,7 +1221,9 @@ function moveCard(source, destinationType, destinationIndex) {
     }
 
     if (source.type === 'tableau') {
-      if (source.pileIndex === destinationIndex) return false;
+      if (source.pileIndex === destinationIndex) {
+        return false;
+      }
 
       return game.recordMove(() =>
         game.moveTableauToTableau(
@@ -933,7 +1290,10 @@ function moveCard(source, destinationType, destinationIndex) {
 // --------------------------------------------------
 
 function autoMoveCard(source) {
-  if (!canInteract() || source.type === 'foundation') {
+  if (
+    !canInteract() ||
+    source.type === 'foundation'
+  ) {
     return false;
   }
 
@@ -1053,7 +1413,7 @@ app.addEventListener('pointerdown', event => {
 
   event.preventDefault();
 
-  // Execute a double-click on the second press.
+  // Execute an automatic move on the second tap.
   if (
     source.type !== 'foundation' &&
     isSecondTap(source, event)

@@ -1,4 +1,3 @@
-
 export class SolitaireRenderer {
   constructor(game, container) {
     this.game = game;
@@ -12,6 +11,7 @@ export class SolitaireRenderer {
   // --------------------------------------------------
 
   createBoard() {
+    // Header and statistics
     const toolbar = document.createElement('header');
     toolbar.className = 'game-toolbar';
 
@@ -52,26 +52,18 @@ export class SolitaireRenderer {
     timerButton.append(timerLabel, timerValue);
     stats.append(scoreDisplay, timerButton);
 
-    // One unified toolbar for desktop and mobile.
-    // CSS changes its position based on screen size.
-
+    // Unified controls: desktop and mobile use the same buttons.
     const controls = document.createElement('nav');
     controls.className = 'game-controls';
     controls.setAttribute('aria-label', 'Game controls');
 
-    const addControl = (className, label, disabled = false) => {
+    const addControl = (className, label) => {
       const button = document.createElement('button');
       button.className = className;
       button.type = 'button';
-      button.title = disabled
-        ? `${label} (coming soon)`
-        : label;
-      button.setAttribute('aria-label', label);
-      button.disabled = disabled;
-
-      // main.js updates the Sound button's textContent,
-      // so the icons are supplied through CSS instead.
       button.textContent = label;
+      button.title = label;
+      button.setAttribute('aria-label', label);
 
       controls.appendChild(button);
       return button;
@@ -83,15 +75,14 @@ export class SolitaireRenderer {
     const soundButton = addControl('sound-button', 'Sound On');
     soundButton.setAttribute('aria-pressed', 'false');
 
-    // Reserved for Draw 1 / Draw 3 and the tutorial.
-    addControl('mode-button', 'Mode', true);
-    addControl('help-button', 'Help', true);
+    addControl('mode-button', 'Mode');
+    addControl('help-button', 'Help');
 
     toolbar.append(title, stats, controls);
     this.container.appendChild(toolbar);
 
     // --------------------------------------------------
-    // Board
+    // Game Board
     // --------------------------------------------------
 
     const board = document.createElement('main');
@@ -108,8 +99,10 @@ export class SolitaireRenderer {
     tableauRow.className = 'tableau-row';
     tableauRow.setAttribute('aria-label', 'Tableau');
 
-    topRow.appendChild(this.createPile('stock'));
-    topRow.appendChild(this.createPile('waste'));
+    topRow.append(
+      this.createPile('stock'),
+      this.createPile('waste')
+    );
 
     for (let i = 0; i < 4; i++) {
       topRow.appendChild(this.createPile('foundation', i));
@@ -123,7 +116,7 @@ export class SolitaireRenderer {
     this.container.appendChild(board);
 
     // --------------------------------------------------
-    // Footer
+    // Portfolio Footer
     // --------------------------------------------------
 
     const footer = document.createElement('footer');
@@ -161,12 +154,7 @@ export class SolitaireRenderer {
     resumeButton.type = 'button';
     resumeButton.textContent = 'Resume';
 
-    pausePanel.append(
-      pauseTitle,
-      pauseMessage,
-      resumeButton
-    );
-
+    pausePanel.append(pauseTitle, pauseMessage, resumeButton);
     pauseOverlay.appendChild(pausePanel);
     this.container.appendChild(pauseOverlay);
 
@@ -202,8 +190,167 @@ export class SolitaireRenderer {
     victoryOverlay.appendChild(victoryPanel);
     this.container.appendChild(victoryOverlay);
 
+    // --------------------------------------------------
+    // Game Mode Dialog
+    // --------------------------------------------------
+
+    const modeOverlay = document.createElement('div');
+    modeOverlay.className = 'mode-overlay game-dialog-overlay';
+    modeOverlay.hidden = true;
+
+    const modePanel = document.createElement('section');
+    modePanel.className = 'game-dialog-panel mode-panel';
+    modePanel.setAttribute('role', 'dialog');
+    modePanel.setAttribute('aria-modal', 'true');
+    modePanel.setAttribute('aria-labelledby', 'mode-title');
+
+    const modeTitle = document.createElement('h2');
+    modeTitle.id = 'mode-title';
+    modeTitle.textContent = 'Game Mode';
+
+    const modeDescription = document.createElement('p');
+    modeDescription.textContent =
+      'Choose how many cards to reveal from the stock. ' +
+      'Your selection applies when you start a new game.';
+
+    const modeChoices = document.createElement('div');
+    modeChoices.className = 'mode-choices';
+
+    // Draw 1 option
+    const draw1Label = document.createElement('label');
+
+    const draw1Input = document.createElement('input');
+    draw1Input.type = 'radio';
+    draw1Input.name = 'draw-mode';
+    draw1Input.value = '1';
+
+    const draw1Text = document.createElement('span');
+    draw1Text.innerHTML =
+      '<strong>Draw 1</strong>' +
+      '<small>Easier — one card per draw</small>';
+
+    draw1Label.append(draw1Input, draw1Text);
+
+    // Draw 3 option
+    const draw3Label = document.createElement('label');
+
+    const draw3Input = document.createElement('input');
+    draw3Input.type = 'radio';
+    draw3Input.name = 'draw-mode';
+    draw3Input.value = '3';
+
+    const draw3Text = document.createElement('span');
+    draw3Text.innerHTML =
+      '<strong>Draw 3</strong>' +
+      '<small>More challenging — three cards per draw</small>';
+
+    draw3Label.append(draw3Input, draw3Text);
+    modeChoices.append(draw1Label, draw3Label);
+
+    const modeStatus = document.createElement('p');
+    modeStatus.className = 'mode-status';
+    modeStatus.setAttribute('aria-live', 'polite');
+
+    const modeActions = document.createElement('div');
+    modeActions.className = 'dialog-actions';
+
+    const modeCloseButton = document.createElement('button');
+    modeCloseButton.className = 'mode-close-button';
+    modeCloseButton.type = 'button';
+    modeCloseButton.textContent = 'Close';
+
+    const modeStartButton = document.createElement('button');
+    modeStartButton.className = 'mode-start-button primary-action';
+    modeStartButton.type = 'button';
+    modeStartButton.textContent = 'New Game';
+
+    modeActions.append(modeCloseButton, modeStartButton);
+
+    modePanel.append(
+      modeTitle,
+      modeDescription,
+      modeChoices,
+      modeStatus,
+      modeActions
+    );
+
+    modeOverlay.appendChild(modePanel);
+    this.container.appendChild(modeOverlay);
+
+    // --------------------------------------------------
+    // Interactive Tutorial Dialog
+    // --------------------------------------------------
+
+    const helpOverlay = document.createElement('div');
+    helpOverlay.className = 'help-overlay game-dialog-overlay';
+    helpOverlay.hidden = true;
+
+    const helpPanel = document.createElement('section');
+    helpPanel.className = 'game-dialog-panel help-panel';
+    helpPanel.setAttribute('role', 'dialog');
+    helpPanel.setAttribute('aria-modal', 'true');
+    helpPanel.setAttribute('aria-labelledby', 'help-title');
+
+    const helpTitle = document.createElement('h2');
+    helpTitle.id = 'help-title';
+    helpTitle.textContent = 'How to Play';
+
+    const helpProgress = document.createElement('p');
+    helpProgress.className = 'help-progress';
+    helpProgress.setAttribute('aria-live', 'polite');
+
+    const helpVisual = document.createElement('div');
+    helpVisual.className = 'help-visual';
+    helpVisual.setAttribute('aria-hidden', 'true');
+
+    const helpHeading = document.createElement('h3');
+    helpHeading.className = 'help-heading';
+
+    const helpText = document.createElement('p');
+    helpText.className = 'help-text';
+
+    const helpActions = document.createElement('div');
+    helpActions.className = 'dialog-actions';
+
+    const helpCloseButton = document.createElement('button');
+    helpCloseButton.className = 'help-close-button';
+    helpCloseButton.type = 'button';
+    helpCloseButton.textContent = 'Close';
+
+    const helpBackButton = document.createElement('button');
+    helpBackButton.className = 'help-back-button';
+    helpBackButton.type = 'button';
+    helpBackButton.textContent = 'Back';
+
+    const helpNextButton = document.createElement('button');
+    helpNextButton.className = 'help-next-button primary-action';
+    helpNextButton.type = 'button';
+    helpNextButton.textContent = 'Next';
+
+    helpActions.append(
+      helpCloseButton,
+      helpBackButton,
+      helpNextButton
+    );
+
+    helpPanel.append(
+      helpTitle,
+      helpProgress,
+      helpVisual,
+      helpHeading,
+      helpText,
+      helpActions
+    );
+
+    helpOverlay.appendChild(helpPanel);
+    this.container.appendChild(helpOverlay);
+
     window.addEventListener('resize', this.handleResize);
   }
+
+  // --------------------------------------------------
+  // Pile Creation
+  // --------------------------------------------------
 
   createPile(type, index = null) {
     const pile = document.createElement('div');
@@ -289,7 +436,9 @@ export class SolitaireRenderer {
 
     stockPile.classList.toggle('has-cards', hasCards);
 
-    if (!hasCards) return;
+    if (!hasCards) {
+      return;
+    }
 
     const cardBack = document.createElement('img');
     cardBack.className = 'stock-card-image';
@@ -310,11 +459,14 @@ export class SolitaireRenderer {
 
     const cards = this.game.waste;
 
-    if (cards.length === 0) return;
+    if (cards.length === 0) {
+      return;
+    }
 
+    // Show the card back below the playable waste card
+    // when more than one card is in the waste.
     if (cards.length > 1) {
       const backingCard = document.createElement('img');
-
       backingCard.className = 'stock-card-image';
       backingCard.src = this.getCardBackPath();
       backingCard.alt = '';
@@ -352,12 +504,11 @@ export class SolitaireRenderer {
   // --------------------------------------------------
 
   renderFoundations() {
-    const foundationPiles =
-      this.container.querySelectorAll('.foundation');
+    const piles = this.container.querySelectorAll('.foundation');
 
-    foundationPiles.forEach((pileElement, index) => {
+    piles.forEach((element, index) => {
       this.renderTopCard(
-        pileElement,
+        element,
         this.game.foundations[index]
       );
     });
@@ -368,14 +519,12 @@ export class SolitaireRenderer {
   // --------------------------------------------------
 
   renderTableau() {
-    const tableauPiles =
-      this.container.querySelectorAll('.tableau');
+    const piles = this.container.querySelectorAll('.tableau');
 
-    tableauPiles.forEach((pileElement, index) => {
-      const cards = this.game.tableau[index];
-      pileElement.innerHTML = '';
+    piles.forEach((element, index) => {
+      element.innerHTML = '';
 
-      cards.forEach((card, cardIndex) => {
+      this.game.tableau[index].forEach((card, cardIndex) => {
         const cardElement = this.createCardElement(card);
 
         cardElement.style.setProperty(
@@ -383,12 +532,10 @@ export class SolitaireRenderer {
           cardIndex
         );
 
-        pileElement.appendChild(cardElement);
+        element.appendChild(cardElement);
       });
     });
 
-    // Absolutely positioned cards don't contribute
-    // to their parent's layout height.
     this.updateTableauHeight();
   }
 
@@ -397,12 +544,12 @@ export class SolitaireRenderer {
   // --------------------------------------------------
 
   updateTableauHeight() {
-    const tableauRow =
-      this.container.querySelector('.tableau-row');
+    const tableauRow = this.container.querySelector('.tableau-row');
 
-    if (!tableauRow) return;
+    if (!tableauRow) {
+      return;
+    }
 
-    // Clear the previous height before measuring.
     tableauRow.style.minHeight = '';
 
     const top = tableauRow.getBoundingClientRect().top;
@@ -431,7 +578,9 @@ export class SolitaireRenderer {
   renderTopCard(pileElement, cards) {
     pileElement.innerHTML = '';
 
-    if (cards.length === 0) return;
+    if (cards.length === 0) {
+      return;
+    }
 
     pileElement.appendChild(
       this.createCardElement(cards[cards.length - 1])

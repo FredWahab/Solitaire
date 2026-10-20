@@ -3,6 +3,7 @@ import { Deck } from './Deck.js';
 
 export class SolitaireGame {
   constructor() {
+    this.drawCount = 1;
     this.newGame();
   }
 
@@ -10,7 +11,9 @@ export class SolitaireGame {
   // Game Setup
   // --------------------------------------------------
 
-  newGame() {
+  newGame(drawCount = this.drawCount) {
+    this.drawCount = drawCount === 3 ? 3 : 1;
+
     this.deck = new Deck();
     this.deck.shuffle();
 
@@ -32,7 +35,6 @@ export class SolitaireGame {
       for (let row = 0; row <= column; row++) {
         const card = this.deck.cards.pop();
         card.faceUp = row === column;
-
         this.tableau[column].push(card);
       }
     }
@@ -53,6 +55,7 @@ export class SolitaireGame {
         return false;
       }
 
+      // Reverse the waste into a new face-down stock.
       this.stock = this.waste.reverse();
 
       this.stock.forEach(card => {
@@ -63,10 +66,15 @@ export class SolitaireGame {
       return true;
     }
 
-    // Draw the next card from the stock.
-    const card = this.stock.pop();
-    card.faceUp = true;
-    this.waste.push(card);
+    // Draw one or three cards, depending on game mode.
+    // If fewer than three remain, draw what's available.
+    const amount = Math.min(this.drawCount, this.stock.length);
+
+    for (let i = 0; i < amount; i++) {
+      const card = this.stock.pop();
+      card.faceUp = true;
+      this.waste.push(card);
+    }
 
     return true;
   }
@@ -77,6 +85,10 @@ export class SolitaireGame {
 
   canMoveToFoundation(card, foundationIndex) {
     const foundation = this.foundations[foundationIndex];
+
+    if (!foundation) {
+      return false;
+    }
 
     // Empty foundations accept only Aces.
     if (foundation.length === 0) {
@@ -94,6 +106,10 @@ export class SolitaireGame {
 
   canMoveToTableau(card, tableauIndex) {
     const tableauPile = this.tableau[tableauIndex];
+
+    if (!tableauPile) {
+      return false;
+    }
 
     // Empty tableau columns accept only Kings.
     if (tableauPile.length === 0) {
@@ -114,11 +130,12 @@ export class SolitaireGame {
   }
 
   isRed(card) {
-    return card.suit === 'hearts' || card.suit === 'diamonds';
+    return card.suit === 'hearts' ||
+      card.suit === 'diamonds';
   }
 
   isValidSequence(cards) {
-    // Verify a face-up, descending, alternating-color sequence.
+    // Verify a face-up descending, alternating-color sequence.
     for (let i = 0; i < cards.length; i++) {
       if (!cards[i].faceUp) {
         return false;
@@ -153,21 +170,21 @@ export class SolitaireGame {
 
     const sourcePile = this.tableau[fromIndex];
     const destinationPile = this.tableau[toIndex];
-    const movingCards = sourcePile.slice(cardIndex);
 
-    if (movingCards.length === 0) {
+    if (!sourcePile || !destinationPile) {
       return false;
     }
 
-    // Validate the sequence and its destination.
+    const movingCards = sourcePile.slice(cardIndex);
+
     if (
+      movingCards.length === 0 ||
       !this.isValidSequence(movingCards) ||
       !this.canMoveToTableau(movingCards[0], toIndex)
     ) {
       return false;
     }
 
-    // Transfer the selected card and all cards below it.
     sourcePile.splice(cardIndex);
     destinationPile.push(...movingCards);
 
@@ -198,13 +215,12 @@ export class SolitaireGame {
   moveFoundationToTableau(foundationIndex, tableauIndex) {
     const foundation = this.foundations[foundationIndex];
 
-    if (foundation.length === 0) {
+    if (!foundation?.length) {
       return false;
     }
 
     const card = foundation[foundation.length - 1];
 
-    // Apply the same rules as other tableau moves.
     if (!this.canMoveToTableau(card, tableauIndex)) {
       return false;
     }
@@ -243,13 +259,16 @@ export class SolitaireGame {
   moveTableauToFoundation(tableauIndex, foundationIndex) {
     const tableauPile = this.tableau[tableauIndex];
 
-    if (tableauPile.length === 0) {
+    if (!tableauPile?.length) {
       return false;
     }
 
     const card = tableauPile[tableauPile.length - 1];
 
-    if (!card.faceUp || !this.canMoveToFoundation(card, foundationIndex)) {
+    if (
+      !card.faceUp ||
+      !this.canMoveToFoundation(card, foundationIndex)
+    ) {
       return false;
     }
 
@@ -263,20 +282,24 @@ export class SolitaireGame {
   }
 
   // --------------------------------------------------
-  // Auto Complete
+  // Automatic Completion
   // --------------------------------------------------
 
   getAutoCompleteMoves() {
-    // All cards must be visible and out of the stock/waste.
+    // All cards must be visible and out of stock/waste.
     if (this.stock.length > 0 || this.waste.length > 0) {
       return null;
     }
 
-    if (this.tableau.some(pile => pile.some(card => !card.faceUp))) {
+    if (
+      this.tableau.some(pile =>
+        pile.some(card => !card.faceUp)
+      )
+    ) {
       return null;
     }
 
-    // Simulate the remaining foundation moves without changing the game.
+    // Simulate the remaining moves without changing the game.
     const tableau = this.tableau.map(pile => [...pile]);
     const foundations = this.foundations.map(pile => [...pile]);
     const moves = [];
@@ -286,7 +309,11 @@ export class SolitaireGame {
     while (foundMove) {
       foundMove = false;
 
-      for (let tableauIndex = 0; tableauIndex < tableau.length; tableauIndex++) {
+      for (
+        let tableauIndex = 0;
+        tableauIndex < tableau.length;
+        tableauIndex++
+      ) {
         const pile = tableau[tableauIndex];
 
         if (pile.length === 0) {
@@ -322,8 +349,9 @@ export class SolitaireGame {
       }
     }
 
-    // Auto Complete is available only if the simulation wins.
-    const completed = foundations.every(pile => pile.length === 13);
+    const completed = foundations.every(
+      pile => pile.length === 13
+    );
 
     return completed && moves.length > 0 ? moves : null;
   }
@@ -343,7 +371,6 @@ export class SolitaireGame {
 
     const topCard = pile[pile.length - 1];
 
-    // Award points only when a face-down card is revealed.
     if (!topCard.faceUp) {
       topCard.faceUp = true;
       this.score += 5;
@@ -351,7 +378,9 @@ export class SolitaireGame {
   }
 
   checkWin() {
-    return this.foundations.every(foundation => foundation.length === 13);
+    return this.foundations.every(
+      foundation => foundation.length === 13
+    );
   }
 
   // --------------------------------------------------
@@ -373,9 +402,8 @@ export class SolitaireGame {
   }
 
   recordMove(action) {
-    // Capture the game before attempting the move.
+    // Capture the state before attempting the move.
     const previousState = this.getStateSnapshot();
-
     const moved = action();
 
     // Invalid moves should not enter Undo history.

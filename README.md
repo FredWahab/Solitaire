@@ -1,75 +1,149 @@
 # Solitaire
 
-A modern, browser-based version of classic Klondike Solitaire, built with vanilla JavaScript, HTML, and CSS.
+A responsive, browser-based implementation of classic **Klondike Solitaire**, built with vanilla JavaScript, CSS, SVG, and Vite.
 
-Arrange cards in descending order with alternating colors, uncover hidden cards, and build all four foundations from Ace to King to win the game.
+Play with **Draw 1** or **Draw 3** rules, move individual cards or valid sequences, and build all four foundations from Ace to King.
 
-**[▶ Play Solitaire](https://fredwahab.github.io/Solitaire/)**
-![Solitaire gameplay showing the stock, waste, foundations, and tableau](assets/gameplay.png)
+### [▶ Play Solitaire](https://fredwahab.github.io/Solitaire/)
+
+![Solitaire gameplay](assets/gameplay.png)
+
+---
 
 ## How to Play
 
-The goal is to move all 52 cards into the four foundation piles, organized by suit in ascending order from Ace to King.
+The objective is to move all 52 cards into four foundation piles, with each foundation containing one suit in ascending order from Ace through King.
 
-- **Build foundations** by placing cards of the same suit in ascending order, starting with an Ace.
-- **Arrange tableau cards** in descending order with alternating red and black suits.
-- **Move card sequences** between tableau columns when the sequence follows the alternating-color rule.
-- **Reveal hidden cards** by moving face-up cards away from covered cards.
-- **Draw from the stock** when additional cards are needed.
-- **Fill empty tableau columns** with Kings or valid sequences beginning with a King.
-- **Complete all four foundations** to win the game.
+### Tableau
 
-This version uses **Draw 1** rules with unlimited passes through the stock.
+The tableau consists of seven columns.
 
-### Controls
+- Cards build downward in rank.
+- Colors must alternate between red and black.
+- Valid face-up sequences can be moved together.
+- Only Kings, or sequences beginning with a King, may occupy an empty column.
+- Moving cards can reveal previously hidden cards.
 
-| Action | Control |
+For example, a red Queen can be placed on a black King, and a black Jack can be placed on that Queen.
+
+### Foundations
+
+Each foundation begins with an Ace and builds upward through King in the same suit.
+
+All four foundations must contain 13 cards to win.
+
+### Stock and Waste
+
+The stock contains the undealt cards.
+
+Click the stock to turn cards into the waste pile. Only the top waste card may be moved to the tableau or a foundation.
+
+When the stock becomes empty, click its position to recycle the remaining waste cards.
+
+The game permits unlimited passes through the stock.
+
+---
+
+## Game Modes
+
+Select a mode using the **Mode** button.
+
+| Mode | Behavior |
 |---|---|
-| Draw a card | Click the stock pile |
-| Select a card or sequence | Click a face-up tableau card |
-| Move selected cards | Click a valid destination pile |
-| Move a waste card | Select the waste card, then click a valid destination |
-| Move a foundation card | Select the foundation card, then click a valid tableau destination |
-| Undo a move | Undo button |
-| Start a new game | New Game button |
-| Pause or resume | Click the timer to pause; use Resume to continue |
-| Mute or unmute audio | Sound On / Sound Off button |
+| Draw 1 | Reveal one card per stock click |
+| Draw 3 | Reveal up to three cards per stock click |
 
-Only legal moves are accepted. Invalid moves leave the board unchanged.
+**Draw 1** generally offers easier access to cards.
 
-### Scoring
+**Draw 3** requires more planning because only the top card of each revealed group is immediately playable.
 
-The game awards points for successful moves and revealing hidden cards.
+The selected mode takes effect when the next new game begins. Changing the preference does not alter a game already in progress.
 
-| Action | Points |
-|---|---:|
-| Reveal a hidden tableau card | +5 |
-| Move a card from waste to tableau | +5 |
-| Move a card to a foundation | +10 |
-| Move a card from foundation to tableau | -15 |
+The game remembers the selected mode using browser local storage.
 
-The score updates throughout the game.
+---
+
+## Controls
+
+| Action | Desktop | Mobile |
+|---|---|---|
+| Start a game | New Game or click the initial deck | New Game or tap the initial deck |
+| Draw from stock | Click stock | Tap stock |
+| Move a card | Drag and drop | Touch and drag |
+| Move a sequence | Drag a valid face-up sequence | Touch and drag a valid sequence |
+| Automatic move | Double-click a movable card | Double-tap a movable card |
+| Undo | Undo button | Undo button |
+| Pause | Click the timer | Tap the timer |
+| Resume | Resume button | Resume button |
+| Sound | Sound button | Sound button |
+| Change mode | Mode button | Mode button |
+| View tutorial | Help button | Help button |
+
+Invalid moves are rejected without changing the game state.
+
+### Interactive Tutorial
+
+The **Help** button opens a guided, nine-step tutorial explaining:
+
+1. The objective of Solitaire
+2. The tableau layout
+3. Alternating-color rules
+4. Moving card sequences
+5. The stock and waste piles
+6. Draw 1 and Draw 3 rules
+7. Foundations and Kings
+8. The available controls
+9. Starting and winning a game
+
+Players can navigate backward and forward through the tutorial without losing their current game.
+
+---
 
 ## Features
 
 - Classic Klondike Solitaire gameplay
-- Standard 52-card deck with randomized shuffling
-- Draw 1 stock mechanics
+- Standard randomized 52-card deck
+- Draw 1 and Draw 3 game modes
 - Unlimited stock recycling
-- Seven tableau columns and four foundation piles
+- Seven tableau columns
+- Four foundation piles
+- Individual card and sequence movement
+- Drag-and-drop controls
+- Double-click and double-tap automatic moves
 - Legal move validation
-- Movement of individual cards and valid card sequences
-- Automatic revealing of uncovered tableau cards
-- Undo functionality
+- Automatic revealing of hidden tableau cards
+- Undo history
 - Score tracking
-- Game timer with pause and resume functionality
-- Automatic completion when the remaining cards can be legally moved to the foundations
-- Animated automatic completion sequence
-- Victory detection and completion dialog
-- New Game functionality
-- Sound effects with persistent mute settings
-- Responsive layout
+- Timer with pause and resume
+- Automatic completion when a winning sequence can be verified
+- Animated opening deal
+- Smooth automatic card movement
+- Victory confetti and sound effects
+- Interactive step-by-step tutorial
+- Responsive desktop, mobile portrait, and mobile landscape layouts
+- Unified toolbar across devices
+- Textured felt-table appearance
+- Persistent sound preferences
+- Persistent game mode preferences
+- Custom favicon and Apple touch icon
 - Automated deployment to GitHub Pages
+
+---
+
+## Scoring
+
+| Action | Points |
+|---|---:|
+| Reveal a hidden tableau card | +5 |
+| Move waste to tableau | +5 |
+| Move a card to a foundation | +10 |
+| Move a card from foundation to tableau | -15 |
+
+The timer begins after the player's first successful gameplay action, rather than immediately when cards are dealt.
+
+The timer stops when the game is won.
+
+---
 
 ## Technology
 
@@ -77,125 +151,154 @@ Solitaire was developed without a game engine or frontend UI framework.
 
 | Technology | Purpose |
 |---|---|
-| JavaScript (ES Modules) | Game rules, card management, state, and interaction handling |
-| HTML5 | Game structure and interface elements |
-| CSS3 | Playing-card layout, responsive styling, and visual presentation |
+| JavaScript (ES Modules) | Game rules, state management, and input handling |
+| HTML5 | Interface structure |
+| CSS3 | Responsive layouts and styling |
 | SVG | Playing-card artwork |
-| Web Audio API | Game sound effects |
-| Local Storage | Persisting audio preferences |
-| Vite | Local development and production builds |
-| GitHub Actions | Automated builds and deployment |
+| Canvas API | Victory confetti animation |
+| Web Animations API | Opening deal and card movement animations |
+| Howler.js | Cross-browser audio playback |
+| Local Storage | Persistent sound and game mode preferences |
+| Vite | Development server and production builds |
+| GitHub Actions | Automated deployment |
 | GitHub Pages | Static website hosting |
+
+---
 
 ## Technical Overview
 
-The game separates card data, deck management, gameplay rules, rendering, and audio into individual JavaScript modules.
+The application separates game rules, rendering, interactions, and audio into individual modules.
 
-### Deck and Card Management
+### Project Structure
 
-Each card is represented by its suit, rank, and face-up state.
+```text
+Solitaire/
+├── index.html
+├── package.json
+├── vite.config.js
+├── public/
+│   ├── cards/
+│   ├── audio/
+│   │   └── solitaire/
+│   ├── favicon.svg
+│   └── apple-touch-icon.png
+├── src/
+│   ├── main.js
+│   ├── style.css
+│   ├── game/
+│   │   ├── Card.js
+│   │   ├── Deck.js
+│   │   ├── SolitaireGame.js
+│   │   └── SolitaireAudio.js
+│   └── ui/
+│       └── SolitaireRenderer.js
+└── README.md
+```
 
-The deck contains 52 cards distributed across four suits:
+### Game Engine
 
-- Clubs
-- Diamonds
-- Hearts
-- Spades
+`SolitaireGame.js` manages:
 
-At the start of each game, the deck is shuffled and dealt into the standard Klondike layout.
+- Deck creation, shuffling, and dealing
+- Stock and waste piles
+- Tableau and foundation piles
+- Draw 1 and Draw 3 mechanics
+- Move validation
+- Scoring
+- Win detection
+- Automatic completion
+- Undo snapshots
 
-Seven tableau columns receive an increasing number of cards, with only the top card of each column initially face-up.
+Game rules remain independent of the visual interface.
 
-The remaining cards form the stock pile.
+### Rendering
 
-### Game State
+`SolitaireRenderer.js` builds the game's interface and renders cards based on the current game state.
 
-The game maintains separate collections for:
+Playing cards use SVG artwork, retaining sharp detail across screen sizes.
 
-- Stock
-- Waste
-- Four foundation piles
-- Seven tableau columns
+The renderer dynamically calculates tableau height so longer columns expand the board rather than overlap the footer.
 
-Card movement updates these collections according to Klondike rules.
+### Input and Animation
 
-The game logic is maintained separately from the interface, allowing move validation and state changes to be handled independently of rendering.
+`main.js` handles mouse, touch, and pointer interactions.
 
-### Move Validation
+Pointer Events allow the same drag-and-drop system to work across desktop and touchscreen devices.
 
-Each attempted move is checked against the rules for its destination.
+The Web Animations API is used for the animated opening deal and automatic card movement.
 
-**Tableau moves** require descending ranks with alternating colors. Only Kings or valid sequences beginning with a King can be placed in empty columns.
+The victory celebration uses a lightweight Canvas animation.
 
-**Foundation moves** require ascending ranks within the same suit, beginning with an Ace.
-
-Multiple face-up tableau cards can be moved together when they form a valid sequence.
-
-Invalid moves are rejected without changing the game state.
+The game respects reduced-motion preferences.
 
 ### Stock and Waste Management
 
-The stock uses Draw 1 mechanics.
+Draw 1 reveals one card per stock click.
 
-Clicking the stock reveals one card and places it into the waste pile. The top waste card is available for legal moves to the tableau or foundations.
+Draw 3 reveals up to three cards per stock click.
 
-When the stock is exhausted, the waste can be recycled back into the stock.
+Only the top waste card can be played, regardless of the selected mode.
 
-This version allows unlimited passes without a scoring penalty.
+When the stock is exhausted, remaining waste cards can be recycled.
+
+Unlimited stock passes are supported.
 
 ### Undo System
 
-The game stores snapshots of its state before successful moves.
+The game captures a state snapshot before each successful move using JavaScript's `structuredClone()` method.
 
-Undo restores the previous state, including card positions, face-up status, and score.
+Undo restores the previous:
 
-State snapshots are created using JavaScript's `structuredClone()` functionality.
+- Stock and waste
+- Tableau columns
+- Foundation piles
+- Face-up and face-down card states
+- Score
+
+This includes stock draws and recycling in both game modes.
 
 ### Automatic Completion
 
-When the game reaches a state where the remaining cards can be moved directly to the foundations, automatic completion begins.
+When the remaining game can be completed entirely through legal foundation moves, automatic completion begins.
 
 The game first verifies that:
 
-1. The stock and waste piles are empty.
+1. The stock and waste are empty.
 2. All remaining tableau cards are face-up.
-3. Every remaining card can be legally moved to a foundation.
+3. Every remaining card can be moved legally to a foundation.
 
-The completion system simulates the remaining moves before starting the animation.
+The game simulates the remaining moves before starting the animation.
 
-Once a valid completion sequence is confirmed, cards are moved individually to the foundations with a short delay between moves.
+If a complete winning sequence exists, the cards are moved automatically to the foundations.
 
-Other gameplay interactions are temporarily disabled during this sequence.
-
-After all foundations are completed, the timer stops and the victory dialog appears.
-
-### Timer and Scoring
-
-The timer begins with the first successful move.
-
-Players can pause the timer using the timer control. A pause overlay prevents additional gameplay until the game resumes.
-
-Scoring is updated when qualifying moves are completed.
-
-The timer stops when the game is won.
-
-### Rendering and Input
-
-The interface is rendered using HTML elements styled with CSS.
-
-Playing cards use SVG artwork, allowing them to retain sharp visual detail at different display sizes.
-
-The renderer updates the stock, waste, foundation, and tableau areas to reflect the current game state.
-
-Card selection and destination clicks are handled through JavaScript event listeners.
+The timer stops when all four foundations are complete.
 
 ### Audio
 
-The game uses the Web Audio API for sound effects.
+Solitaire uses **Howler.js** for sound playback.
 
-Different sounds accompany card draws, successful moves, undo operations, and victory.
+The audio system includes sounds for:
 
-Audio can be enabled or disabled through the interface, and the selected preference is stored in the browser's local storage.
+- Drawing cards
+- Moving cards
+- Moving sequences
+- Undo
+- Recycling the stock
+- Starting a new game
+- Completing a game
+
+The game uses locally hosted audio files and saves the mute setting in browser local storage.
+
+### Preferences
+
+Browser local storage remembers:
+
+- Sound enabled or muted
+- Draw 1 or Draw 3 selection
+
+Individual game progress is not saved across page reloads.
+
+---
 
 ## Running Locally
 
@@ -226,7 +329,7 @@ Start the development server:
 npm run dev
 ```
 
-Open the local URL displayed in the terminal.
+Open the local URL displayed in your terminal.
 
 ### Production Build
 
@@ -236,59 +339,81 @@ Generate a production build:
 npm run build
 ```
 
-The generated files are placed in the `dist/` directory.
+Build output is placed in the `dist/` directory.
 
-To preview the production build locally:
+Preview the production build:
 
 ```bash
 npm run preview
 ```
 
+---
+
 ## Deployment
 
-The game is hosted on GitHub Pages:
+Solitaire is hosted on GitHub Pages:
 
 **https://fredwahab.github.io/Solitaire/**
 
 Deployment is automated using GitHub Actions.
 
-When changes are pushed to the `main` branch, the deployment workflow:
+The deployment process:
 
 1. Checks out the repository.
 2. Installs Node.js and project dependencies.
-3. Builds the project using Vite.
+3. Builds the application using Vite.
 4. Uploads the generated production files.
-5. Deploys the build to GitHub Pages.
+5. Publishes the build to GitHub Pages.
 
-The Vite configuration uses `/Solitaire/` as its base path for GitHub Pages hosting.
+The Vite configuration uses `/Solitaire/` as the base path for GitHub Pages hosting.
 
-## Future Improvements
+---
 
-Potential enhancements include:
+## Assets and Credits
 
-- Double-click functionality for moving eligible cards directly to foundations
-- Optional hint system
-- Draw 3 gameplay mode
-- Restarting the current deal
-- Move counter and gameplay statistics
-- Additional keyboard and accessibility controls
-- Further mobile layout refinements
-- Additional animations and visual polish
-
-## Playing Card Artwork
+### Playing Cards
 
 Playing-card SVG assets are sourced from:
 
 **[Public Domain and CC0 Playing Cards — Austin Gabriel](https://github.com/AustinGabriel/Public-Domain-and-CC0-Playing-Cards)**
 
-The project includes the original asset attribution information in `public/cards/citation.txt`.
+Additional attribution information is maintained in:
+
+`public/cards/citation.txt`
+
+### Audio
+
+Card and casino-style audio recordings are based on **Kenney's Casino Audio** pack, released under CC0.
+
+https://kenney.nl/assets/casino-audio
+
+The project also includes a custom victory sound.
+
+### Libraries
+
+- [Howler.js](https://howlerjs.com/) — Audio playback
+- [Vite](https://vite.dev/) — Development and production builds
+
+---
+
+## Future Improvements
+
+Potential enhancements beyond v1.1 include:
+
+- Optional hints
+- Restarting the same shuffled deal
+- Saved game progress
+- Game statistics and win tracking
+- Additional scoring options
+- Expanded keyboard accessibility
+- More customization options
+
+---
 
 ## Author
 
 **Fred Wahab**
 
-[GitHub](https://github.com/FredWahab)
+[GitHub Profile](https://github.com/FredWahab)
 
----
-
-Built as a browser game development and JavaScript portfolio project.
+Built as part of a browser game development and software engineering portfolio.
