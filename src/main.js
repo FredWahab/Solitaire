@@ -3,9 +3,9 @@ import { SolitaireGame } from './game/SolitaireGame.js';
 import { SolitaireRenderer } from './ui/SolitaireRenderer.js';
 import { SolitaireAudio } from './game/SolitaireAudio.js';
 
-// --------------------------------------------------
+// ==================================================
 // Initialization
-// --------------------------------------------------
+// ==================================================
 
 const game = new SolitaireGame();
 const audio = new SolitaireAudio();
@@ -21,11 +21,14 @@ const undoButton = $('.undo-button');
 const soundButton = $('.sound-button');
 const modeButton = $('.mode-button');
 const helpButton = $('.help-button');
+
 const scoreValue = $('.score-value');
 const timerButton = $('.timer-button');
 const timerValue = $('.timer-value');
+
 const pauseOverlay = $('.pause-overlay');
 const resumeButton = $('.resume-button');
+
 const victoryOverlay = $('.victory-overlay');
 const playAgainButton = $('.play-again-button');
 
@@ -42,6 +45,7 @@ const helpOverlay = $('.help-overlay');
 const helpCloseButton = $('.help-close-button');
 const helpBackButton = $('.help-back-button');
 const helpNextButton = $('.help-next-button');
+
 const helpHeading = $('.help-heading');
 const helpText = $('.help-text');
 const helpVisual = $('.help-visual');
@@ -58,9 +62,24 @@ const tableauPiles = Array.from(
   app.querySelectorAll('.tableau')
 );
 
-// --------------------------------------------------
+// ==================================================
+// Constants
+// ==================================================
+
+const DRAG_THRESHOLD = 5;
+const DOUBLE_TAP_DELAY = 450;
+const DOUBLE_TAP_DISTANCE = 36;
+
+const AUTO_MOVE_DURATION = 180;
+const UNDO_DURATION = 230;
+const RECYCLE_DURATION = 300;
+const DRAW_DURATION = 185;
+
+const VICTORY_DURATION = 1500;
+
+// ==================================================
 // Game State
-// --------------------------------------------------
+// ==================================================
 
 let elapsedMilliseconds = 0;
 let timerStartedAt = null;
@@ -75,6 +94,7 @@ let hasGameStarted = false;
 
 let dragState = null;
 let lastTap = null;
+
 let automaticMoveHistory = new WeakMap();
 let renderVersion = 0;
 
@@ -87,22 +107,9 @@ let helpStep = 0;
 let dialogWasTiming = false;
 let dialogFocusReturn = null;
 
-const DRAG_THRESHOLD = 5;
-const DOUBLE_TAP_DELAY = 450;
-const DOUBLE_TAP_DISTANCE = 36;
-const AUTO_MOVE_DURATION = 180;
-const VICTORY_DURATION = 1500;
-
-// --------------------------------------------------
+// ==================================================
 // Game Mode State
-// --------------------------------------------------
-
-// selectedDrawCount is the committed preference.
-// pendingDrawCount is only used while the Mode dialog
-// is open.
-//
-// Closing the dialog discards pendingDrawCount.
-// Starting a new game applies and saves it.
+// ==================================================
 
 const storedMode = localStorage.getItem(
   'solitaire-draw-mode'
@@ -111,9 +118,9 @@ const storedMode = localStorage.getItem(
 let selectedDrawCount = storedMode === '3' ? 3 : 1;
 let pendingDrawCount = selectedDrawCount;
 
-// --------------------------------------------------
+// ==================================================
 // General Helpers
-// --------------------------------------------------
+// ==================================================
 
 function canInteract() {
   return (
@@ -132,20 +139,38 @@ function isReducedMotion() {
   ).matches;
 }
 
-function wait(milliseconds) {
-  return new Promise(resolve =>
-    window.setTimeout(resolve, milliseconds)
+function canAnimate() {
+  return (
+    !isReducedMotion() &&
+    typeof Element.prototype.animate === 'function'
   );
 }
 
-// --------------------------------------------------
+function wait(milliseconds) {
+  return new Promise(resolve => {
+    window.setTimeout(resolve, milliseconds);
+  });
+}
+
+function cardKey(card) {
+  return `${card.suit}-${card.rank}`;
+}
+
+function getCardImage(card, faceUp = card.faceUp) {
+  return faceUp
+    ? renderer.getCardFacePath(card)
+    : renderer.getCardBackPath();
+}
+
+// ==================================================
 // Timer
-// --------------------------------------------------
+// ==================================================
 
 function getElapsedMilliseconds() {
   return timerStartedAt === null
     ? elapsedMilliseconds
-    : elapsedMilliseconds + performance.now() - timerStartedAt;
+    : elapsedMilliseconds +
+        performance.now() - timerStartedAt;
 }
 
 function updateTimerDisplay() {
@@ -212,9 +237,9 @@ function onSuccessfulAction() {
   }
 }
 
-// --------------------------------------------------
+// ==================================================
 // Interface Helpers
-// --------------------------------------------------
+// ==================================================
 
 function clearLastTap() {
   lastTap = null;
@@ -278,13 +303,12 @@ function updateControls() {
     gameWon ||
     Boolean(activeDialog);
 
-  // Display the current game's mode, rather than
-  // a temporary selection from the Mode dialog.
   const displayedMode = hasGameStarted
     ? game.drawCount
     : selectedDrawCount;
 
-  modeButton.title = `Game mode: Draw ${displayedMode}`;
+  modeButton.title =
+    `Game mode: Draw ${displayedMode}`;
 
   modeButton.setAttribute(
     'aria-label',
@@ -311,13 +335,9 @@ function refreshUI() {
   scoreValue.textContent = String(game.score);
 }
 
-// --------------------------------------------------
-// Undealt Initial Table
-// --------------------------------------------------
-
-// SolitaireGame automatically deals in its constructor.
-// Collect those cards into the stock so the first screen
-// displays a single undealt deck.
+// ==================================================
+// Initial Undealt Table
+// ==================================================
 
 game.stock.push(...game.tableau.flat());
 
@@ -325,9 +345,18 @@ game.stock.forEach(card => {
   card.faceUp = false;
 });
 
-game.tableau = Array.from({ length: 7 }, () => []);
+game.tableau = Array.from(
+  { length: 7 },
+  () => []
+);
+
 game.waste = [];
-game.foundations = Array.from({ length: 4 }, () => []);
+
+game.foundations = Array.from(
+  { length: 4 },
+  () => []
+);
+
 game.history = [];
 game.score = 0;
 
@@ -335,9 +364,9 @@ refreshUI();
 updateSoundButton();
 updateTimerDisplay();
 
-// --------------------------------------------------
+// ==================================================
 // Mode Dialog
-// --------------------------------------------------
+// ==================================================
 
 function updateModeDialog() {
   drawModeInputs.forEach(input => {
@@ -385,8 +414,6 @@ function openDialog(type) {
   activeDialog = type;
 
   if (type === 'mode') {
-    // Begin with the mode actually being played.
-    // Before the first game, use the saved preference.
     pendingDrawCount = hasGameStarted
       ? game.drawCount
       : selectedDrawCount;
@@ -410,7 +437,6 @@ function openDialog(type) {
 function closeDialog() {
   if (!activeDialog) return;
 
-  // Discard temporary changes when closing Mode.
   if (activeDialog === 'mode') {
     pendingDrawCount = hasGameStarted
       ? game.drawCount
@@ -442,15 +468,15 @@ function closeDialog() {
   dialogFocusReturn = null;
 }
 
-// Open Mode
 modeButton.addEventListener('click', () => {
   openDialog('mode');
 });
 
-// Close Mode without applying the selection
-modeCloseButton.addEventListener('click', closeDialog);
+modeCloseButton.addEventListener(
+  'click',
+  closeDialog
+);
 
-// Select a temporary mode
 drawModeInputs.forEach(input => {
   input.addEventListener('change', () => {
     pendingDrawCount =
@@ -460,9 +486,7 @@ drawModeInputs.forEach(input => {
   });
 });
 
-// Apply the selected mode and start a fresh game
 modeStartButton.addEventListener('click', () => {
-  // Preserve the choice before closeDialog resets it.
   const newDrawCount = pendingDrawCount;
 
   closeDialog();
@@ -478,9 +502,9 @@ modeStartButton.addEventListener('click', () => {
   startNewGame();
 });
 
-// --------------------------------------------------
+// ==================================================
 // Interactive Tutorial
-// --------------------------------------------------
+// ==================================================
 
 const tutorialSteps = [
   {
@@ -579,7 +603,10 @@ helpButton.addEventListener('click', () => {
   openDialog('help');
 });
 
-helpCloseButton.addEventListener('click', closeDialog);
+helpCloseButton.addEventListener(
+  'click',
+  closeDialog
+);
 
 helpBackButton.addEventListener('click', () => {
   if (helpStep > 0) {
@@ -597,9 +624,9 @@ helpNextButton.addEventListener('click', () => {
   }
 });
 
-// --------------------------------------------------
+// ==================================================
 // Dialog Keyboard Support
-// --------------------------------------------------
+// ==================================================
 
 document.addEventListener('keydown', event => {
   if (!activeDialog) return;
@@ -641,9 +668,9 @@ document.addEventListener('keydown', event => {
   }
 });
 
-// --------------------------------------------------
+// ==================================================
 // Victory Confetti
-// --------------------------------------------------
+// ==================================================
 
 function stopVictoryCelebration() {
   if (victoryAnimationFrame !== null) {
@@ -694,16 +721,21 @@ function playVictoryConfetti() {
     '#A7F3D0'
   ];
 
-  const particles = Array.from({ length: 85 }, () => ({
-    x: Math.random(),
-    y: -Math.random() * 0.55,
-    speed: 0.35 + Math.random() * 0.35,
-    drift: (Math.random() - 0.5) * 0.15,
-    size: 5 + Math.random() * 6,
-    rotation: Math.random() * Math.PI * 2,
-    spin: (Math.random() - 0.5) * 8,
-    color: colors[Math.floor(Math.random() * colors.length)]
-  }));
+  const particles = Array.from(
+    { length: 85 },
+    () => ({
+      x: Math.random(),
+      y: -Math.random() * 0.55,
+      speed: 0.35 + Math.random() * 0.35,
+      drift: (Math.random() - 0.5) * 0.15,
+      size: 5 + Math.random() * 6,
+      rotation: Math.random() * Math.PI * 2,
+      spin: (Math.random() - 0.5) * 8,
+      color: colors[
+        Math.floor(Math.random() * colors.length)
+      ]
+    })
+  );
 
   const startedAt = performance.now();
 
@@ -715,7 +747,11 @@ function playVictoryConfetti() {
 
     const width = window.innerWidth;
     const height = window.innerHeight;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const dpr = Math.min(
+      window.devicePixelRatio || 1,
+      2
+    );
 
     const pixelWidth = Math.round(width * dpr);
     const pixelHeight = Math.round(height * dpr);
@@ -737,16 +773,19 @@ function playVictoryConfetti() {
 
     particles.forEach(particle => {
       const x =
-        (particle.x + particle.drift * progress) * width;
+        (particle.x +
+          particle.drift * progress) * width;
 
       const y =
-        (particle.y + particle.speed * progress * 3) * height;
+        (particle.y +
+          particle.speed * progress * 3) * height;
 
       context.save();
       context.translate(x, y);
 
       context.rotate(
-        particle.rotation + particle.spin * progress
+        particle.rotation +
+        particle.spin * progress
       );
 
       context.fillStyle = particle.color;
@@ -764,7 +803,8 @@ function playVictoryConfetti() {
     context.globalAlpha = 1;
 
     if (progress < 1) {
-      victoryAnimationFrame = requestAnimationFrame(animate);
+      victoryAnimationFrame =
+        requestAnimationFrame(animate);
     } else {
       victoryAnimationFrame = null;
       canvas.remove();
@@ -775,14 +815,15 @@ function playVictoryConfetti() {
     }
   }
 
-  victoryAnimationFrame = requestAnimationFrame(animate);
+  victoryAnimationFrame =
+    requestAnimationFrame(animate);
 
   return VICTORY_DURATION;
 }
 
-// --------------------------------------------------
+// ==================================================
 // Win / Automatic Completion
-// --------------------------------------------------
+// ==================================================
 
 function finishGame() {
   if (gameWon) return;
@@ -813,9 +854,235 @@ function finishGame() {
   }, duration);
 }
 
-// --------------------------------------------------
+// ==================================================
+// Animation Utilities
+// ==================================================
+
+/**
+ * Create a floating visual card without modifying the
+ * actual game state.
+ */
+function createFlyingCard(
+  card,
+  rect,
+  faceUp = card.faceUp
+) {
+  const element = document.createElement('div');
+  element.className = 'card';
+
+  Object.assign(element.style, {
+    position: 'fixed',
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+    zIndex: '1000',
+    pointerEvents: 'none',
+    margin: '0',
+    transform: 'none',
+    translate: 'none'
+  });
+
+  const image = document.createElement('img');
+  image.className = 'card-image';
+
+  image.src = getCardImage(card, faceUp);
+  image.alt = '';
+  image.draggable = false;
+
+  element.appendChild(image);
+  document.body.appendChild(element);
+
+  return element;
+}
+
+/**
+ * Move a temporary card between two screen positions.
+ *
+ * Its visual representation is independent of the
+ * underlying SolitaireGame state.
+ */
+async function flyCard(
+  card,
+  fromRect,
+  toRect,
+  {
+    duration = 200,
+    faceUp = card.faceUp,
+    reverseFace = false
+  } = {}
+) {
+  if (!canAnimate()) return;
+
+  const element = createFlyingCard(
+    card,
+    fromRect,
+    faceUp
+  );
+
+  const dx = toRect.left - fromRect.left;
+  const dy = toRect.top - fromRect.top;
+
+  const animation = element.animate(
+    [
+      {
+        transform: 'translate(0px, 0px)',
+        opacity: 1
+      },
+      {
+        transform: `translate(${dx}px, ${dy}px)`,
+        opacity: 1
+      }
+    ],
+    {
+      duration,
+      easing: 'cubic-bezier(0.22, 0.75, 0.25, 1)',
+      fill: 'forwards'
+    }
+  );
+
+  try {
+    await animation.finished;
+  } catch {
+    // The final UI render remains authoritative.
+  } finally {
+    element.remove();
+  }
+}
+
+/**
+ * Locate individual cards as currently rendered.
+ *
+ * Stock cards have no individual DOM elements, so
+ * their position is represented by the stock pile.
+ */
+function captureCardPositions() {
+  const positions = new Map();
+
+  tableauPiles.forEach((pile, pileIndex) => {
+    const elements = Array.from(
+      pile.querySelectorAll('.card')
+    );
+
+    game.tableau[pileIndex].forEach((card, index) => {
+      const element = elements[index];
+
+      if (!element) return;
+
+      positions.set(cardKey(card), {
+        card,
+        rect: element.getBoundingClientRect(),
+        zone: 'tableau',
+        pileIndex,
+        index,
+        visible: true
+      });
+    });
+  });
+
+  foundationPiles.forEach((pile, pileIndex) => {
+    const element = pile.querySelector('.card');
+    const cards = game.foundations[pileIndex];
+
+    if (!element || cards.length === 0) return;
+
+    const card = cards.at(-1);
+
+    positions.set(cardKey(card), {
+      card,
+      rect: element.getBoundingClientRect(),
+      zone: 'foundation',
+      pileIndex,
+      index: cards.length - 1,
+      visible: true
+    });
+  });
+
+  const wasteElements = Array.from(
+    wastePile.querySelectorAll('.card')
+  );
+
+  const visibleWasteCount = wasteElements.length;
+
+  game.waste
+    .slice(-visibleWasteCount)
+    .forEach((card, index) => {
+      const element = wasteElements[index];
+
+      if (!element) return;
+
+      positions.set(cardKey(card), {
+        card,
+        rect: element.getBoundingClientRect(),
+        zone: 'waste',
+        pileIndex: 0,
+        index:
+          game.waste.length -
+          visibleWasteCount +
+          index,
+        visible: true
+      });
+    });
+
+  // The stock is visually a single face-down pile.
+  const stockRect = stockPile.getBoundingClientRect();
+
+  game.stock.forEach((card, index) => {
+    positions.set(cardKey(card), {
+      card,
+      rect: stockRect,
+      zone: 'stock',
+      pileIndex: 0,
+      index,
+      visible: false
+    });
+  });
+
+  return positions;
+}
+
+/**
+ * Record the actual location of every card,
+ * including cards not individually visible.
+ */
+function captureCardLocations() {
+  const locations = new Map();
+
+  const add = (cards, zone, pileIndex = 0) => {
+    cards.forEach((card, index) => {
+      locations.set(cardKey(card), {
+        card,
+        zone,
+        pileIndex,
+        index
+      });
+    });
+  };
+
+  add(game.stock, 'stock');
+  add(game.waste, 'waste');
+
+  game.tableau.forEach((cards, index) => {
+    add(cards, 'tableau', index);
+  });
+
+  game.foundations.forEach((cards, index) => {
+    add(cards, 'foundation', index);
+  });
+
+  return locations;
+}
+
+function sameCardLocation(before, after) {
+  return (
+    before.zone === after.zone &&
+    before.pileIndex === after.pileIndex
+  );
+}
+
+// ==================================================
 // Animated Opening Deal
-// --------------------------------------------------
+// ==================================================
 
 async function playDealAnimation(playSound = false) {
   isDealing = true;
@@ -829,11 +1096,11 @@ async function playDealAnimation(playSound = false) {
     card.style.visibility = 'hidden';
   });
 
-  if (playSound && typeof audio.start === 'function') {
+  if (playSound) {
     audio.start();
   }
 
-  if (isReducedMotion()) {
+  if (!canAnimate()) {
     tableauCards.flat().forEach(card => {
       card.style.visibility = '';
     });
@@ -844,7 +1111,6 @@ async function playDealAnimation(playSound = false) {
   }
 
   const stockRect = stockPile.getBoundingClientRect();
-  const cardBackPath = renderer.getCardBackPath();
   const animations = [];
 
   for (let row = 0; row < 7; row++) {
@@ -853,29 +1119,16 @@ async function playDealAnimation(playSound = false) {
 
       if (!actualCard) continue;
 
-      const destination = actualCard.getBoundingClientRect();
+      const destination =
+        actualCard.getBoundingClientRect();
 
-      const flyingCard = document.createElement('div');
-      flyingCard.className = 'card';
+      const card = game.tableau[column][row];
 
-      Object.assign(flyingCard.style, {
-        position: 'fixed',
-        left: `${destination.left}px`,
-        top: `${destination.top}px`,
-        width: `${destination.width}px`,
-        height: `${destination.height}px`,
-        zIndex: '1000',
-        pointerEvents: 'none'
-      });
-
-      const image = document.createElement('img');
-      image.className = 'card-image';
-      image.src = cardBackPath;
-      image.alt = '';
-      image.draggable = false;
-
-      flyingCard.appendChild(image);
-      document.body.appendChild(flyingCard);
+      const flyingCard = createFlyingCard(
+        card,
+        destination,
+        false
+      );
 
       const dx = stockRect.left - destination.left;
       const dy = stockRect.top - destination.top;
@@ -915,9 +1168,9 @@ async function playDealAnimation(playSound = false) {
   updateControls();
 }
 
-// --------------------------------------------------
+// ==================================================
 // Automatic Completion
-// --------------------------------------------------
+// ==================================================
 
 async function runAutomaticCompletion(moves) {
   isAutoCompleting = true;
@@ -928,7 +1181,10 @@ async function runAutomaticCompletion(moves) {
 
   const startingState = game.getStateSnapshot();
 
-  for (const { tableauIndex, foundationIndex } of moves) {
+  for (const {
+    tableauIndex,
+    foundationIndex
+  } of moves) {
     const moved = game.moveTableauToFoundation(
       tableauIndex,
       foundationIndex
@@ -976,9 +1232,9 @@ function checkForAutomaticCompletion() {
   }
 }
 
-// --------------------------------------------------
-// Smooth Automatic Card Movement
-// --------------------------------------------------
+// ==================================================
+// Automatic Card Movement
+// ==================================================
 
 function captureSourceRects(source) {
   return source.elements.map(element =>
@@ -994,8 +1250,7 @@ function animateAutomaticMove(
   if (
     !sourceRects ||
     !sourceRects.length ||
-    typeof Element.prototype.animate !== 'function' ||
-    isReducedMotion()
+    !canAnimate()
   ) {
     return [];
   }
@@ -1069,9 +1324,183 @@ function completeMove(moved, animation = null) {
   return true;
 }
 
-// --------------------------------------------------
+// ==================================================
+// Animated Undo - HOTFIX
+// ==================================================
+
+/**
+ * Undo the last action and animate the cards back
+ * toward their original positions.
+ *
+ * The game engine still performs exactly one Undo.
+ * This function only controls presentation.
+ */
+async function performAnimatedUndo() {
+  if (!canInteract()) return;
+
+  cancelDrag();
+  clearLastTap();
+
+  const beforeLocations = captureCardLocations();
+  const beforePositions = captureCardPositions();
+
+  // One game-engine Undo, unchanged.
+  if (!game.undo()) return;
+
+  automaticMoveHistory = new WeakMap();
+
+  isDealing = true;
+
+  // Render the restored state to determine where
+  // the cards need to finish.
+  refreshUI();
+
+  const afterLocations = captureCardLocations();
+  const afterPositions = captureCardPositions();
+
+  const movements = [];
+
+  for (const [key, destination] of afterLocations) {
+    const source = beforeLocations.get(key);
+
+    if (!source) continue;
+
+    if (sameCardLocation(source, destination)) {
+      continue;
+    }
+
+    const before = beforePositions.get(key);
+    const after = afterPositions.get(key);
+
+    let fromRect = before?.rect;
+    let toRect = after?.rect;
+
+    // A previously invisible stock card begins
+    // at the stock pile.
+    if (!fromRect && source.zone === 'stock') {
+      fromRect = stockPile.getBoundingClientRect();
+    }
+
+    // A card returning to stock ends at the deck.
+    if (!toRect && destination.zone === 'stock') {
+      toRect = stockPile.getBoundingClientRect();
+    }
+
+    // A buried card returning to the waste has no
+    // independent visible destination. The waste
+    // pile is its visual destination.
+    if (!toRect && destination.zone === 'waste') {
+      toRect = wastePile.getBoundingClientRect();
+    }
+
+    // A buried waste card departing the waste pile
+    // similarly begins at the waste location.
+    if (!fromRect && source.zone === 'waste') {
+      fromRect = wastePile.getBoundingClientRect();
+    }
+
+    if (!fromRect || !toRect) {
+      continue;
+    }
+
+    // Cards in the restored state remain hidden
+    // while their floating counterparts move.
+    let destinationElement = null;
+
+    if (after?.visible) {
+      const destinationPile =
+        destination.zone === 'tableau'
+          ? tableauPiles[destination.pileIndex]
+          : destination.zone === 'foundation'
+            ? foundationPiles[destination.pileIndex]
+            : destination.zone === 'waste'
+              ? wastePile
+              : null;
+
+      if (destinationPile) {
+        if (destination.zone === 'tableau') {
+          destinationElement = Array.from(
+            destinationPile.querySelectorAll('.card')
+          )[destination.index];
+        } else if (destination.zone === 'foundation') {
+          destinationElement =
+            destinationPile.querySelector('.card');
+        } else if (destination.zone === 'waste') {
+          const visibleCards = Array.from(
+            wastePile.querySelectorAll('.card')
+          );
+
+          const firstVisibleIndex =
+            game.waste.length - visibleCards.length;
+
+          destinationElement =
+            visibleCards[
+              destination.index - firstVisibleIndex
+            ];
+        }
+      }
+    }
+
+    // Animate only individually visible cards,
+    // plus transitions into and out of stock.
+    const shouldAnimate =
+      Boolean(before?.visible) ||
+      Boolean(after?.visible) ||
+      source.zone === 'stock' ||
+      destination.zone === 'stock';
+
+    if (!shouldAnimate) continue;
+
+    if (destinationElement) {
+      destinationElement.style.visibility = 'hidden';
+    }
+
+    movements.push({
+      card: destination.card,
+      fromRect,
+      toRect,
+      destinationElement,
+      faceUp: source.zone !== 'stock' &&
+        (before?.card?.faceUp ?? true)
+    });
+  }
+
+  audio.undo();
+
+  try {
+    if (canAnimate() && movements.length > 0) {
+      await Promise.all(
+        movements.map(async movement => {
+          await flyCard(
+            movement.card,
+            movement.fromRect,
+            movement.toRect,
+            {
+              duration: UNDO_DURATION,
+              faceUp: movement.faceUp
+            }
+          );
+        })
+      );
+    }
+  } finally {
+    movements.forEach(movement => {
+      if (movement.destinationElement?.isConnected) {
+        movement.destinationElement.style.visibility = '';
+      }
+    });
+
+    isDealing = false;
+
+    onSuccessfulAction();
+    refreshUI();
+    checkForAutomaticCompletion();
+  }
+}
+
+// ==================================================
 // Game Controls
-// --------------------------------------------------
+// ==================================================
 
 function pauseGame() {
   if (
@@ -1119,7 +1548,6 @@ function startNewGame() {
 
   automaticMoveHistory = new WeakMap();
 
-  // Use the committed mode, not a canceled selection.
   game.newGame(selectedDrawCount);
   hasGameStarted = true;
 
@@ -1133,24 +1561,18 @@ function startNewGame() {
   void playDealAnimation(true);
 }
 
-newGameButton.addEventListener('click', startNewGame);
-playAgainButton.addEventListener('click', startNewGame);
+newGameButton.addEventListener(
+  'click',
+  startNewGame
+);
+
+playAgainButton.addEventListener(
+  'click',
+  startNewGame
+);
 
 undoButton.addEventListener('click', () => {
-  if (!canInteract()) return;
-
-  cancelDrag();
-  clearLastTap();
-
-  if (game.undo()) {
-    automaticMoveHistory = new WeakMap();
-
-    onSuccessfulAction();
-    audio.undo();
-    refreshUI();
-
-    checkForAutomaticCompletion();
-  }
+  void performAnimatedUndo();
 });
 
 soundButton.addEventListener('click', () => {
@@ -1163,99 +1585,164 @@ soundButton.addEventListener('click', () => {
 timerButton.addEventListener('click', pauseGame);
 resumeButton.addEventListener('click', resumeGame);
 
-// --------------------------------------------------
-// Animated Stock Draw
-// --------------------------------------------------
+// ==================================================
+// Animated Stock Draw - HOTFIX
+// ==================================================
 
-async function animateStockDraw(card) {
+/**
+ * Reveal one card, move it from stock to waste,
+ * and play exactly one associated draw sound.
+ */
+async function animateStockDraw(card, sequence = false) {
   const stockRect = stockPile.getBoundingClientRect();
 
-  // Render the newly revealed card in its correct
-  // position within the waste pile.
+  // Render only the waste, preserving the remainder
+  // of the board throughout the draw sequence.
   renderer.renderWaste();
 
-  const topWasteCard = wastePile.querySelector(
-    '.waste-card:last-child'
+  const wasteCards = Array.from(
+    wastePile.querySelectorAll('.card')
   );
 
-  const destinationCard =
-    topWasteCard ||
-    wastePile.querySelector('.card:last-child');
+  const destinationCard = wasteCards.at(-1);
+
+  // Start the sound at the same point as the visual.
+  if (sequence) {
+    audio.drawSequence();
+  } else {
+    audio.draw();
+  }
 
   if (!destinationCard) {
-    audio.draw();
     return;
   }
 
   const destinationRect =
     destinationCard.getBoundingClientRect();
 
-  if (isReducedMotion()) {
-    audio.draw();
-    return;
-  }
+  if (!canAnimate()) return;
 
   destinationCard.style.visibility = 'hidden';
 
-  const flyingCard = document.createElement('div');
-  flyingCard.className = 'card';
-
-  Object.assign(flyingCard.style, {
-    position: 'fixed',
-    left: `${destinationRect.left}px`,
-    top: `${destinationRect.top}px`,
-    width: `${destinationRect.width}px`,
-    height: `${destinationRect.height}px`,
-    zIndex: '1000',
-    pointerEvents: 'none'
-  });
-
-  const image = document.createElement('img');
-  image.className = 'card-image';
-  image.src = renderer.getCardFacePath(card);
-  image.alt = '';
-  image.draggable = false;
-
-  flyingCard.appendChild(image);
-  document.body.appendChild(flyingCard);
-
-  const dx = stockRect.left - destinationRect.left;
-  const dy = stockRect.top - destinationRect.top;
-
-  audio.draw();
-
-  const animation = flyingCard.animate(
-    [
-      {
-        transform: `translate(${dx}px, ${dy}px)`
-      },
-      {
-        transform: 'translate(0px, 0px)'
-      }
-    ],
-    {
-      duration: 160,
-      easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
-      fill: 'forwards'
-    }
-  );
-
   try {
-    await animation.finished;
-  } catch {
-    // Restore the card if interrupted.
+    await flyCard(
+      card,
+      stockRect,
+      destinationRect,
+      {
+        duration: DRAW_DURATION,
+        faceUp: true
+      }
+    );
   } finally {
-    flyingCard.remove();
-    destinationCard.style.visibility = '';
+    if (destinationCard.isConnected) {
+      destinationCard.style.visibility = '';
+    }
   }
 }
 
-// --------------------------------------------------
+// ==================================================
+// Stock Recycling - HOTFIX
+// ==================================================
+
+/**
+ * Animate the visible waste cards moving back
+ * toward the stock as a face-down deck.
+ *
+ * This is one recorded move for Undo.
+ */
+async function animateStockRecycle() {
+  if (
+    !canInteract() ||
+    game.stock.length !== 0 ||
+    game.waste.length === 0
+  ) {
+    return;
+  }
+
+  const wasteCards = game.waste.slice();
+  const stockRect = stockPile.getBoundingClientRect();
+
+  const wasteElements = Array.from(
+    wastePile.querySelectorAll('.card')
+  );
+
+  const visibleCards = wasteCards.slice(
+    -wasteElements.length
+  );
+
+  const outgoingCards = visibleCards.map(
+    (card, index) => ({
+      card,
+      rect: wasteElements[index]
+        ?.getBoundingClientRect()
+        ?? wastePile.getBoundingClientRect()
+    })
+  );
+
+  if (!game.recordMove(() => game.drawCard())) {
+    return;
+  }
+
+  isDealing = true;
+  refreshUI();
+
+  // The new face-down stock is already in the
+  // game state, but keep its image invisible
+  // while the returning cards are animated.
+  const stockImage = stockPile.querySelector(
+    '.stock-card-image'
+  );
+
+  if (stockImage) {
+    stockImage.style.visibility = 'hidden';
+  }
+
+  // Play once, at the beginning of the transition.
+  // Do not add a second shuffle or draw sound.
+  audio.recycle();
+
+  try {
+    if (canAnimate()) {
+      const animations = outgoingCards.map(
+        async ({ card, rect }, index) => {
+          // Small stagger creates the impression of
+          // the waste cards being collected together.
+          await wait(index * 45);
+
+          await flyCard(
+            card,
+            rect,
+            stockRect,
+            {
+              duration: RECYCLE_DURATION,
+              faceUp: true
+            }
+          );
+        }
+      );
+
+      await Promise.all(animations);
+    }
+  } finally {
+    if (stockImage?.isConnected) {
+      stockImage.style.visibility = '';
+    }
+
+    isDealing = false;
+
+    onSuccessfulAction();
+    refreshUI();
+    checkForAutomaticCompletion();
+  }
+}
+
+// ==================================================
 // Stock Interaction
-// --------------------------------------------------
+// ==================================================
 
 stockPile.addEventListener('click', async () => {
-  // Clicking the initial deck starts the first game.
+  // First interaction starts the initial deal.
   if (!hasGameStarted) {
     if (!activeDialog) {
       startNewGame();
@@ -1269,23 +1756,9 @@ stockPile.addEventListener('click', async () => {
   cancelDrag();
   clearLastTap();
 
-  const recycling = game.stock.length === 0;
-
-  // Recycle the waste as a single action.
-  if (recycling) {
-    if (game.recordMove(() => game.drawCard())) {
-      onSuccessfulAction();
-
-      if (typeof audio.recycle === 'function') {
-        audio.recycle();
-      } else {
-        audio.draw();
-      }
-
-      refreshUI();
-      checkForAutomaticCompletion();
-    }
-
+  // Empty stock: animate the waste returning.
+  if (game.stock.length === 0) {
+    await animateStockRecycle();
     return;
   }
 
@@ -1294,22 +1767,39 @@ stockPile.addEventListener('click', async () => {
     game.stock.length
   );
 
-  // Store one Undo snapshot for the entire draw.
+  // Exactly one Undo snapshot for Draw 1 or Draw 3.
   if (!game.recordMove(() => game.drawCard())) {
     return;
   }
 
-  // Temporarily remove the drawn cards so we can
-  // reveal them one at a time with sound and motion.
   const drawnCards = game.waste.splice(-drawAmount);
 
   isDealing = true;
   updateControls();
 
+  // Select the coordinated sound sequence only for
+  // multi-card draws.
+  const useSequence = drawnCards.length > 1;
+
+  if (useSequence) {
+    audio.beginDrawSequence();
+  }
+
   try {
     for (const card of drawnCards) {
       game.waste.push(card);
-      await animateStockDraw(card);
+
+      await animateStockDraw(
+        card,
+        useSequence
+      );
+
+      // A small pause separates successive card
+      // sounds and prevents them from blurring
+      // together on mobile speakers.
+      if (useSequence) {
+        await wait(55);
+      }
     }
   } finally {
     isDealing = false;
@@ -1320,17 +1810,20 @@ stockPile.addEventListener('click', async () => {
   }
 });
 
-// --------------------------------------------------
+// ==================================================
 // Card Selection
-// --------------------------------------------------
+// ==================================================
 
 function getDragSource(cardElement) {
   if (!cardElement) return null;
 
-  const tableauElement = cardElement.closest('.tableau');
+  const tableauElement =
+    cardElement.closest('.tableau');
 
   if (tableauElement) {
-    const pileIndex = tableauPiles.indexOf(tableauElement);
+    const pileIndex = tableauPiles.indexOf(
+      tableauElement
+    );
 
     if (pileIndex < 0) return null;
 
@@ -1398,11 +1891,15 @@ function getDragSource(cardElement) {
   return null;
 }
 
-// --------------------------------------------------
+// ==================================================
 // Card Movement
-// --------------------------------------------------
+// ==================================================
 
-function moveCard(source, destinationType, destinationIndex) {
+function moveCard(
+  source,
+  destinationType,
+  destinationIndex
+) {
   if (!canInteract()) return false;
 
   if (destinationType === 'tableau') {
@@ -1453,7 +1950,9 @@ function moveCard(source, destinationType, destinationIndex) {
 
     if (source.type === 'waste') {
       return game.recordMove(() =>
-        game.moveWasteToFoundation(destinationIndex)
+        game.moveWasteToFoundation(
+          destinationIndex
+        )
       );
     }
 
@@ -1462,7 +1961,8 @@ function moveCard(source, destinationType, destinationIndex) {
         game.tableau[source.pileIndex];
 
       if (
-        source.cardIndex !== sourcePile.length - 1
+        source.cardIndex !==
+        sourcePile.length - 1
       ) {
         return false;
       }
@@ -1479,9 +1979,9 @@ function moveCard(source, destinationType, destinationIndex) {
   return false;
 }
 
-// --------------------------------------------------
+// ==================================================
 // Automatic Movement: Double-Click / Double-Tap
-// --------------------------------------------------
+// ==================================================
 
 function autoMoveCard(source) {
   if (
@@ -1493,7 +1993,9 @@ function autoMoveCard(source) {
 
   const movingCards = source.type === 'waste'
     ? game.waste.slice(-1)
-    : game.tableau[source.pileIndex].slice(source.cardIndex);
+    : game.tableau[source.pileIndex].slice(
+        source.cardIndex
+      );
 
   if (
     !movingCards.length ||
@@ -1504,7 +2006,6 @@ function autoMoveCard(source) {
 
   const card = movingCards[0];
 
-  // A single card can move directly to a foundation.
   if (movingCards.length === 1) {
     for (let i = 0; i < foundationPiles.length; i++) {
       if (!game.canMoveToFoundation(card, i)) {
@@ -1554,7 +2055,13 @@ function autoMoveCard(source) {
 
   const rects = captureSourceRects(source);
 
-  if (moveCard(source, 'tableau', destinationIndex)) {
+  if (
+    moveCard(
+      source,
+      'tableau',
+      destinationIndex
+    )
+  ) {
     automaticMoveHistory.set(
       card,
       destinationIndex
@@ -1570,16 +2077,17 @@ function autoMoveCard(source) {
   return false;
 }
 
-// --------------------------------------------------
+// ==================================================
 // Pointer Handling
-// --------------------------------------------------
+// ==================================================
 
 function isSecondTap(source, event) {
   return (
     lastTap !== null &&
     lastTap.card === source.card &&
     lastTap.pointerType === event.pointerType &&
-    performance.now() - lastTap.time <= DOUBLE_TAP_DELAY &&
+    performance.now() - lastTap.time <=
+      DOUBLE_TAP_DELAY &&
     Math.hypot(
       event.clientX - lastTap.x,
       event.clientY - lastTap.y
@@ -1597,7 +2105,8 @@ app.addEventListener('pointerdown', event => {
     return;
   }
 
-  const cardElement = event.target.closest('.card');
+  const cardElement =
+    event.target.closest('.card');
 
   if (!cardElement) {
     clearLastTap();
@@ -1634,7 +2143,9 @@ app.addEventListener('pointerdown', event => {
     dragging: false
   };
 
-  cardElement.setPointerCapture(event.pointerId);
+  cardElement.setPointerCapture(
+    event.pointerId
+  );
 });
 
 document.addEventListener('pointermove', event => {
@@ -1645,8 +2156,11 @@ document.addEventListener('pointermove', event => {
     return;
   }
 
-  const dx = event.clientX - dragState.startX;
-  const dy = event.clientY - dragState.startY;
+  const dx =
+    event.clientX - dragState.startX;
+
+  const dy =
+    event.clientY - dragState.startY;
 
   if (
     !dragState.dragging &&
@@ -1660,13 +2174,20 @@ document.addEventListener('pointermove', event => {
     clearLastTap();
   }
 
-  dragState.elements.forEach((element, index) => {
-    element.style.zIndex = String(1000 + index);
-    element.style.translate = `${dx}px ${dy}px`;
-    element.style.pointerEvents = 'none';
-    element.style.filter =
-      'drop-shadow(0 8px 8px rgba(0,0,0,0.3))';
-  });
+  dragState.elements.forEach(
+    (element, index) => {
+      element.style.zIndex =
+        String(1000 + index);
+
+      element.style.translate =
+        `${dx}px ${dy}px`;
+
+      element.style.pointerEvents = 'none';
+
+      element.style.filter =
+        'drop-shadow(0 8px 8px rgba(0,0,0,0.3))';
+    }
+  );
 });
 
 document.addEventListener('pointerup', event => {
@@ -1717,13 +2238,17 @@ document.addEventListener('pointerup', event => {
     moved = moveCard(
       source,
       'tableau',
-      tableauPiles.indexOf(tableauDestination)
+      tableauPiles.indexOf(
+        tableauDestination
+      )
     );
   } else if (foundationDestination) {
     moved = moveCard(
       source,
       'foundation',
-      foundationPiles.indexOf(foundationDestination)
+      foundationPiles.indexOf(
+        foundationDestination
+      )
     );
   }
 
@@ -1732,19 +2257,22 @@ document.addEventListener('pointerup', event => {
   }
 });
 
-document.addEventListener('pointercancel', event => {
-  if (
-    dragState &&
-    event.pointerId === dragState.pointerId
-  ) {
-    cancelDrag();
-    clearLastTap();
+document.addEventListener(
+  'pointercancel',
+  event => {
+    if (
+      dragState &&
+      event.pointerId === dragState.pointerId
+    ) {
+      cancelDrag();
+      clearLastTap();
+    }
   }
-});
+);
 
-// --------------------------------------------------
+// ==================================================
 // Prevent Native Browser Card Dragging
-// --------------------------------------------------
+// ==================================================
 
 app.addEventListener('dragstart', event => {
   if (event.target.closest('.card')) {
