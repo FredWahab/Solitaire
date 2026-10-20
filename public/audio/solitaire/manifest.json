@@ -1,0 +1,135 @@
+{
+  "pack": "Solitaire Audio Kit",
+  "version": "1.0.0",
+  "license": "CC0 1.0 for Kenney-derived recordings; original generated victory cue provided for unrestricted project use",
+  "author": "Kenney (card/casino source effects); custom edits and victory composition",
+  "format": "MP3 44.1kHz stereo, 112-128kbps",
+  "roles": {
+    "draw": [
+      {
+        "file": "draw-01.mp3",
+        "duration_s": 0.65,
+        "size_bytes": 9917,
+        "source": "card-slide-2.ogg"
+      },
+      {
+        "file": "draw-02.mp3",
+        "duration_s": 0.52,
+        "size_bytes": 8454,
+        "source": "card-slide-4.ogg"
+      },
+      {
+        "file": "draw-03.mp3",
+        "duration_s": 0.36,
+        "size_bytes": 5894,
+        "source": "card-slide-6.ogg"
+      },
+      {
+        "file": "draw-04.mp3",
+        "duration_s": 0.74,
+        "size_bytes": 11380,
+        "source": "card-slide-8.ogg"
+      }
+    ],
+    "place": [
+      {
+        "file": "place-01.mp3",
+        "duration_s": 0.29,
+        "size_bytes": 5163,
+        "source": "card-place-1.ogg"
+      },
+      {
+        "file": "place-02.mp3",
+        "duration_s": 0.35,
+        "size_bytes": 5894,
+        "source": "card-place-2.ogg"
+      },
+      {
+        "file": "place-03.mp3",
+        "duration_s": 0.67,
+        "size_bytes": 10283,
+        "source": "card-place-4.ogg"
+      }
+    ],
+    "sequence": [
+      {
+        "file": "sequence-01.mp3",
+        "duration_s": 0.83,
+        "size_bytes": 12477,
+        "source": "card-shove-1.ogg"
+      },
+      {
+        "file": "sequence-02.mp3",
+        "duration_s": 0.76,
+        "size_bytes": 11746,
+        "source": "card-shove-3.ogg"
+      }
+    ],
+    "foundation": [
+      {
+        "file": "foundation-01.mp3",
+        "duration_s": 0.49,
+        "size_bytes": 7723,
+        "source": "card-place-3.ogg"
+      },
+      {
+        "file": "foundation-02.mp3",
+        "duration_s": 0.83,
+        "size_bytes": 12477,
+        "source": "card-shove-2.ogg"
+      }
+    ],
+    "undo": [
+      {
+        "file": "undo-01.mp3",
+        "duration_s": 0.66,
+        "size_bytes": 10283,
+        "source": "card-slide-3.ogg"
+      },
+      {
+        "file": "undo-02.mp3",
+        "duration_s": 0.7,
+        "size_bytes": 10649,
+        "source": "card-slide-7.ogg"
+      }
+    ],
+    "flip": [
+      {
+        "file": "flip-01.mp3",
+        "duration_s": 0.25,
+        "size_bytes": 4432,
+        "source": "card-slide-1.ogg"
+      },
+      {
+        "file": "flip-02.mp3",
+        "duration_s": 0.36,
+        "size_bytes": 5894,
+        "source": "card-slide-5.ogg"
+      }
+    ],
+    "recycle": [
+      {
+        "file": "recycle.mp3",
+        "duration_s": 1.22,
+        "size_bytes": 17963,
+        "source": "card-shuffle.ogg + card-fan-1.ogg"
+      }
+    ],
+    "start": [
+      {
+        "file": "game-start.mp3",
+        "duration_s": 2.1,
+        "size_bytes": 30397,
+        "source": "card-shuffle.ogg + card-fan-1.ogg + card-place-2.ogg"
+      }
+    ],
+    "victory": [
+      {
+        "file": "victory.mp3",
+        "duration_s": 2.4,
+        "size_bytes": 39331,
+        "source": "Original synthesized soft chime composition; no external sound samples"
+      }
+    ]
+  }
+}

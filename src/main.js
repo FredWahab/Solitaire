@@ -11,6 +11,7 @@ import { SolitaireAudio } from './game/SolitaireAudio.js';
 const game = new SolitaireGame();
 const audio = new SolitaireAudio();
 const app = document.querySelector('#app');
+
 const renderer = new SolitaireRenderer(game, app);
 renderer.createBoard();
 
@@ -24,18 +25,26 @@ const pauseOverlay = app.querySelector('.pause-overlay');
 const resumeButton = app.querySelector('.resume-button');
 const victoryOverlay = app.querySelector('.victory-overlay');
 const playAgainButton = app.querySelector('.play-again-button');
+
 const stockPile = app.querySelector('.stock');
 const wastePile = app.querySelector('.waste');
 const foundationPiles = Array.from(app.querySelectorAll('.foundation'));
 const tableauPiles = Array.from(app.querySelectorAll('.tableau'));
 
+// --------------------------------------------------
+// Game State
+// --------------------------------------------------
+
 let elapsedMilliseconds = 0;
 let timerStartedAt = null;
 let timerInterval = null;
 let hasTimerStarted = false;
+
 let isPaused = false;
 let gameWon = false;
 let isAutoCompleting = false;
+let isDealing = false;
+let hasGameStarted = false;
 
 let dragState = null;
 let lastTap = null;
@@ -47,8 +56,21 @@ const DOUBLE_TAP_DELAY = 450;
 const DOUBLE_TAP_DISTANCE = 36;
 const AUTO_MOVE_DURATION = 180;
 
+// Victory animation state
+let victoryAnimationFrame = null;
+let victoryCanvas = null;
+let victoryDialogTimeout = null;
+
+const VICTORY_DURATION = 1500;
+
 function canInteract() {
-  return !isPaused && !gameWon && !isAutoCompleting;
+  return (
+    hasGameStarted &&
+    !isPaused &&
+    !gameWon &&
+    !isAutoCompleting &&
+    !isDealing
+  );
 }
 
 // --------------------------------------------------
@@ -63,6 +85,7 @@ function getElapsedMilliseconds() {
 
 function updateTimerDisplay() {
   const seconds = Math.floor(getElapsedMilliseconds() / 1000);
+
   timerValue.textContent =
     `${String(Math.floor(seconds / 60)).padStart(2, '0')}:` +
     `${String(seconds % 60).padStart(2, '0')}`;
@@ -70,8 +93,10 @@ function updateTimerDisplay() {
 
 function startTimer() {
   if (timerStartedAt !== null || isPaused || gameWon) return;
+
   hasTimerStarted = true;
   timerStartedAt = performance.now();
+
   if (timerInterval === null) {
     timerInterval = window.setInterval(updateTimerDisplay, 250);
   }
@@ -82,24 +107,30 @@ function stopTimer() {
     elapsedMilliseconds += performance.now() - timerStartedAt;
     timerStartedAt = null;
   }
+
   if (timerInterval !== null) {
     window.clearInterval(timerInterval);
     timerInterval = null;
   }
+
   updateTimerDisplay();
 }
 
 function resetTimer() {
   stopTimer();
+
   elapsedMilliseconds = 0;
   hasTimerStarted = false;
   isPaused = false;
   gameWon = false;
+
   updateTimerDisplay();
 }
 
 function onSuccessfulAction() {
-  if (!isPaused && !gameWon) startTimer();
+  if (!isPaused && !gameWon) {
+    startTimer();
+  }
 }
 
 // --------------------------------------------------
@@ -112,6 +143,7 @@ function clearLastTap() {
 
 function cancelDrag() {
   if (!dragState) return;
+
   const currentDrag = dragState;
   dragState = null;
 
@@ -123,6 +155,7 @@ function cancelDrag() {
   });
 
   const captured = currentDrag.captureElement;
+
   if (
     captured?.isConnected &&
     captured.hasPointerCapture(currentDrag.pointerId)
@@ -132,10 +165,22 @@ function cancelDrag() {
 }
 
 function updateControls() {
-  undoButton.disabled = game.history.length === 0 || isAutoCompleting || gameWon;
-  newGameButton.disabled = isAutoCompleting;
+  undoButton.disabled =
+    !hasGameStarted ||
+    game.history.length === 0 ||
+    isAutoCompleting ||
+    isDealing ||
+    gameWon;
+
+  newGameButton.disabled = isAutoCompleting || isDealing;
+
   soundButton.disabled = isAutoCompleting || gameWon;
-  timerButton.disabled = isAutoCompleting || gameWon;
+
+  timerButton.disabled =
+    !hasGameStarted ||
+    isAutoCompleting ||
+    isDealing ||
+    gameWon;
 }
 
 function updateSoundButton() {
@@ -143,10 +188,32 @@ function updateSoundButton() {
   soundButton.setAttribute('aria-pressed', String(audio.muted));
 }
 
+// --------------------------------------------------
+// Initial Table Setup
+// --------------------------------------------------
+
+// SolitaireGame automatically deals cards in its constructor.
+// Gather them into the stock so the page initially shows
+// an undealt deck. New Game will generate a fresh shuffle.
+
+game.stock.push(...game.tableau.flat());
+
+game.stock.forEach(card => {
+  card.faceUp = false;
+});
+
+game.tableau = Array.from({ length: 7 }, () => []);
+game.waste = [];
+game.foundations = Array.from({ length: 4 }, () => []);
+game.history = [];
+game.score = 0;
+
 function refreshUI() {
   renderVersion += 1;
+
   renderer.render();
   updateControls();
+
   scoreValue.textContent = String(game.score);
 }
 
@@ -155,26 +222,302 @@ updateSoundButton();
 updateTimerDisplay();
 
 // --------------------------------------------------
-// Win / automatic completion
+// Victory Confetti
+// --------------------------------------------------
+
+function stopVictoryCelebration() {
+  if (victoryAnimationFrame !== null) {
+    cancelAnimationFrame(victoryAnimationFrame);
+    victoryAnimationFrame = null;
+  }
+
+  if (victoryDialogTimeout !== null) {
+    clearTimeout(victoryDialogTimeout);
+    victoryDialogTimeout = null;
+  }
+
+  if (victoryCanvas) {
+    victoryCanvas.remove();
+    victoryCanvas = null;
+  }
+}
+
+function playVictoryConfetti() {
+  stopVictoryCelebration();
+
+  if (
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  ) {
+    return 0;
+  }
+
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
+
+  if (!context) return 0;
+
+  victoryCanvas = canvas;
+
+  canvas.style.position = 'fixed';
+  canvas.style.inset = '0';
+  canvas.style.width = '100%';
+  canvas.style.height = '100%';
+  canvas.style.pointerEvents = 'none';
+  canvas.style.zIndex = '99';
+
+  document.body.appendChild(canvas);
+
+  const colors = [
+    '#FFD166',
+    '#06D6A0',
+    '#4CC9F0',
+    '#EF476F',
+    '#FFFFFF',
+    '#A7F3D0'
+  ];
+
+  const particles = Array.from({ length: 85 }, () => ({
+    x: Math.random(),
+    y: -Math.random() * 0.55,
+    speed: 0.35 + Math.random() * 0.35,
+    drift: (Math.random() - 0.5) * 0.15,
+    size: 5 + Math.random() * 6,
+    rotation: Math.random() * Math.PI * 2,
+    spin: (Math.random() - 0.5) * 8,
+    color: colors[Math.floor(Math.random() * colors.length)]
+  }));
+
+  const startedAt = performance.now();
+
+  function animate(now) {
+    const elapsed = now - startedAt;
+    const progress = Math.min(
+      elapsed / VICTORY_DURATION,
+      1
+    );
+
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    const pixelWidth = Math.round(width * dpr);
+    const pixelHeight = Math.round(height * dpr);
+
+    if (
+      canvas.width !== pixelWidth ||
+      canvas.height !== pixelHeight
+    ) {
+      canvas.width = pixelWidth;
+      canvas.height = pixelHeight;
+    }
+
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    context.clearRect(0, 0, width, height);
+
+    const opacity = progress > 0.8
+      ? (1 - progress) / 0.2
+      : 1;
+
+    context.globalAlpha = Math.max(0, opacity);
+
+    particles.forEach(particle => {
+      const x = (
+        particle.x + particle.drift * progress
+      ) * width;
+
+      const y = (
+        particle.y + particle.speed * progress * 3
+      ) * height;
+
+      context.save();
+      context.translate(x, y);
+
+      context.rotate(
+        particle.rotation + particle.spin * progress
+      );
+
+      context.fillStyle = particle.color;
+
+      context.fillRect(
+        -particle.size / 2,
+        -particle.size / 2,
+        particle.size,
+        particle.size * 0.6
+      );
+
+      context.restore();
+    });
+
+    context.globalAlpha = 1;
+
+    if (progress < 1) {
+      victoryAnimationFrame = requestAnimationFrame(animate);
+    } else {
+      victoryAnimationFrame = null;
+      canvas.remove();
+
+      if (victoryCanvas === canvas) {
+        victoryCanvas = null;
+      }
+    }
+  }
+
+  victoryAnimationFrame = requestAnimationFrame(animate);
+
+  return VICTORY_DURATION;
+}
+
+// --------------------------------------------------
+// Win / Automatic Completion
 // --------------------------------------------------
 
 function finishGame() {
   if (gameWon) return;
+
   gameWon = true;
+
   stopTimer();
   cancelDrag();
   clearLastTap();
+
   refreshUI();
+
+  // Play the existing victory sound.
   audio.victory();
-  victoryOverlay.hidden = false;
+
+  // Celebrate before displaying the victory panel.
+  const duration = playVictoryConfetti();
+
+  if (duration === 0) {
+    victoryOverlay.hidden = false;
+    return;
+  }
+
+  victoryDialogTimeout = window.setTimeout(() => {
+    victoryDialogTimeout = null;
+
+    if (gameWon) {
+      victoryOverlay.hidden = false;
+    }
+  }, duration);
 }
 
 function wait(milliseconds) {
-  return new Promise(resolve => window.setTimeout(resolve, milliseconds));
+  return new Promise(resolve =>
+    window.setTimeout(resolve, milliseconds)
+  );
+}
+
+// --------------------------------------------------
+// Animated Opening Deal
+// --------------------------------------------------
+
+async function playDealAnimation(playSound = false) {
+  isDealing = true;
+  updateControls();
+
+  const tableauCards = tableauPiles.map(pile =>
+    Array.from(pile.querySelectorAll('.card'))
+  );
+
+  // Hide the already-rendered cards until they land.
+  tableauCards.flat().forEach(card => {
+    card.style.visibility = 'hidden';
+  });
+
+  if (playSound && typeof audio.start === 'function') {
+    audio.start();
+  }
+
+  const reduceMotion = window.matchMedia(
+    '(prefers-reduced-motion: reduce)'
+  ).matches;
+
+  if (reduceMotion) {
+    tableauCards.flat().forEach(card => {
+      card.style.visibility = '';
+    });
+
+    isDealing = false;
+    updateControls();
+    return;
+  }
+
+  const stockRect = stockPile.getBoundingClientRect();
+  const cardBackPath = renderer.getCardBackPath();
+
+  const animations = [];
+
+  // Deal in rounds across the seven tableau columns.
+  for (let row = 0; row < 7; row++) {
+    for (let column = row; column < 7; column++) {
+      const actualCard = tableauCards[column][row];
+
+      if (!actualCard) continue;
+
+      const destination = actualCard.getBoundingClientRect();
+
+      const flyingCard = document.createElement('div');
+      flyingCard.className = 'card';
+
+      flyingCard.style.position = 'fixed';
+      flyingCard.style.left = `${destination.left}px`;
+      flyingCard.style.top = `${destination.top}px`;
+      flyingCard.style.width = `${destination.width}px`;
+      flyingCard.style.height = `${destination.height}px`;
+      flyingCard.style.zIndex = '1000';
+      flyingCard.style.pointerEvents = 'none';
+
+      const image = document.createElement('img');
+      image.className = 'card-image';
+      image.src = cardBackPath;
+      image.alt = '';
+      image.draggable = false;
+
+      flyingCard.appendChild(image);
+      document.body.appendChild(flyingCard);
+
+      const dx = stockRect.left - destination.left;
+      const dy = stockRect.top - destination.top;
+
+      const animation = flyingCard.animate(
+        [
+          {
+            transform: `translate(${dx}px, ${dy}px)`
+          },
+          {
+            transform: 'translate(0px, 0px)'
+          }
+        ],
+        {
+          duration: 240,
+          easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
+          fill: 'forwards'
+        }
+      );
+
+      const finished = animation.finished
+        .catch(() => {})
+        .then(() => {
+          flyingCard.remove();
+          actualCard.style.visibility = '';
+        });
+
+      animations.push(finished);
+
+      await wait(65);
+    }
+  }
+
+  await Promise.all(animations);
+
+  isDealing = false;
+  updateControls();
 }
 
 async function runAutomaticCompletion(moves) {
   isAutoCompleting = true;
+
   cancelDrag();
   clearLastTap();
   refreshUI();
@@ -182,46 +525,68 @@ async function runAutomaticCompletion(moves) {
   const startingState = game.getStateSnapshot();
 
   for (const { tableauIndex, foundationIndex } of moves) {
-    const moved = game.moveTableauToFoundation(tableauIndex, foundationIndex);
+    const moved = game.moveTableauToFoundation(
+      tableauIndex,
+      foundationIndex
+    );
+
     if (!moved) {
       game.stock = startingState.stock;
       game.waste = startingState.waste;
       game.foundations = startingState.foundations;
       game.tableau = startingState.tableau;
       game.score = startingState.score;
+
       isAutoCompleting = false;
       refreshUI();
       return;
     }
+
     audio.move();
     refreshUI();
+
     await wait(130);
   }
 
   isAutoCompleting = false;
-  if (game.checkWin()) finishGame();
-  else refreshUI();
+
+  if (game.checkWin()) {
+    finishGame();
+  } else {
+    refreshUI();
+  }
 }
 
 function checkForAutomaticCompletion() {
   if (!canInteract()) return;
+
   if (game.checkWin()) {
     finishGame();
     return;
   }
+
   const moves = game.getAutoCompleteMoves();
-  if (moves && moves.length > 0) void runAutomaticCompletion(moves);
+
+  if (moves && moves.length > 0) {
+    void runAutomaticCompletion(moves);
+  }
 }
 
 // --------------------------------------------------
-// Smooth automatic movement
+// Smooth Automatic Card Movement
 // --------------------------------------------------
 
 function captureSourceRects(source) {
-  return source.elements.map(element => element.getBoundingClientRect());
+  return source.elements.map(element =>
+    element.getBoundingClientRect()
+  );
 }
 
-function animateAutomaticMove(sourceRects, destinationType, destinationIndex) {
+function animateAutomaticMove(
+  sourceRects,
+  destinationType,
+  destinationIndex
+) {
   if (
     !sourceRects ||
     !sourceRects.length ||
@@ -237,20 +602,22 @@ function animateAutomaticMove(sourceRects, destinationType, destinationIndex) {
 
   if (!destination) return [];
 
-  // After rendering, the moved cards are the last cards in the destination.
-  const cards = Array.from(destination.querySelectorAll('.card'))
-    .slice(-sourceRects.length);
+  const cards = Array.from(
+    destination.querySelectorAll('.card')
+  ).slice(-sourceRects.length);
 
-  if (cards.length !== sourceRects.length) return [];
+  if (cards.length !== sourceRects.length) {
+    return [];
+  }
 
   return cards.map((element, index) => {
     const start = sourceRects[index];
     const end = element.getBoundingClientRect();
+
     const dx = start.left - end.left;
     const dy = start.top - end.top;
 
-    // 'translate' doesn't overwrite the tableau's CSS 'transform',
-    // which is responsible for vertical stacking.
+    // 'translate' preserves the tableau's CSS transform.
     return element.animate(
       [
         { translate: `${dx}px ${dy}px` },
@@ -266,12 +633,15 @@ function animateAutomaticMove(sourceRects, destinationType, destinationIndex) {
 
 function completeMove(moved, animation = null) {
   if (!moved) return false;
+
   clearLastTap();
   onSuccessfulAction();
+
   audio.move();
   refreshUI();
 
   const version = renderVersion;
+
   const animations = animation
     ? animateAutomaticMove(
         animation.rects,
@@ -281,47 +651,71 @@ function completeMove(moved, animation = null) {
     : [];
 
   if (animations.length > 0) {
-    // Wait for the flying cards before triggering endgame auto-completion.
-    // A later render invalidates this particular completion check.
-    Promise.allSettled(animations.map(item => item.finished)).then(() => {
-      if (renderVersion === version) checkForAutomaticCompletion();
+    Promise.allSettled(
+      animations.map(item => item.finished)
+    ).then(() => {
+      if (renderVersion === version) {
+        checkForAutomaticCompletion();
+      }
     });
   } else {
     checkForAutomaticCompletion();
   }
+
   return true;
 }
 
 // --------------------------------------------------
-// Controls
+// Game Controls
 // --------------------------------------------------
 
 function pauseGame() {
   if (isPaused || gameWon || isAutoCompleting) return;
+
   cancelDrag();
   clearLastTap();
   stopTimer();
+
   isPaused = true;
   pauseOverlay.hidden = false;
 }
 
 function resumeGame() {
   if (!isPaused) return;
+
   isPaused = false;
   pauseOverlay.hidden = true;
-  if (hasTimerStarted) startTimer();
+
+  if (hasTimerStarted) {
+    startTimer();
+  }
 }
 
 function startNewGame() {
-  if (isAutoCompleting) return;
+  if (isAutoCompleting || isDealing) return;
+
+  // Remove any confetti or delayed victory panel.
+  stopVictoryCelebration();
+
   cancelDrag();
   clearLastTap();
+
   automaticMoveHistory = new WeakMap();
+
+  // Create a new shuffled and dealt game.
   game.newGame();
+
+  hasGameStarted = true;
+
   resetTimer();
+
   pauseOverlay.hidden = true;
   victoryOverlay.hidden = true;
+
   refreshUI();
+
+  // Animate the opening deal and play its existing sound.
+  void playDealAnimation(true);
 }
 
 newGameButton.addEventListener('click', startNewGame);
@@ -329,19 +723,24 @@ playAgainButton.addEventListener('click', startNewGame);
 
 undoButton.addEventListener('click', () => {
   if (!canInteract()) return;
+
   cancelDrag();
   clearLastTap();
+
   if (game.undo()) {
     automaticMoveHistory = new WeakMap();
+
     onSuccessfulAction();
     audio.undo();
     refreshUI();
+
     checkForAutomaticCompletion();
   }
 });
 
 soundButton.addEventListener('click', () => {
   if (isAutoCompleting || gameWon) return;
+
   audio.toggleMute();
   updateSoundButton();
 });
@@ -349,169 +748,297 @@ soundButton.addEventListener('click', () => {
 timerButton.addEventListener('click', pauseGame);
 resumeButton.addEventListener('click', resumeGame);
 
+// --------------------------------------------------
+// Stock Interaction
+// --------------------------------------------------
+
 stockPile.addEventListener('click', () => {
   if (!canInteract()) return;
+
   cancelDrag();
   clearLastTap();
+
   if (game.recordMove(() => game.drawCard())) {
     onSuccessfulAction();
     audio.draw();
     refreshUI();
+
     checkForAutomaticCompletion();
   }
 });
 
 // --------------------------------------------------
-// Card selection and legal movement
+// Card Selection
 // --------------------------------------------------
 
 function getDragSource(cardElement) {
   if (!cardElement) return null;
 
   const tableauElement = cardElement.closest('.tableau');
+
   if (tableauElement) {
     const pileIndex = tableauPiles.indexOf(tableauElement);
+
     if (pileIndex < 0) return null;
-    const elements = Array.from(tableauElement.querySelectorAll('.card'));
+
+    const elements = Array.from(
+      tableauElement.querySelectorAll('.card')
+    );
+
     const cardIndex = elements.indexOf(cardElement);
+
     if (cardIndex < 0) return null;
+
     const movingCards = game.tableau[pileIndex].slice(cardIndex);
-    if (!movingCards.length || !game.isValidSequence(movingCards)) return null;
+
+    if (
+      !movingCards.length ||
+      !game.isValidSequence(movingCards)
+    ) {
+      return null;
+    }
+
     return {
-      type: 'tableau', pileIndex, cardIndex,
-      card: movingCards[0], elements: elements.slice(cardIndex)
+      type: 'tableau',
+      pileIndex,
+      cardIndex,
+      card: movingCards[0],
+      elements: elements.slice(cardIndex)
     };
   }
 
   if (wastePile.contains(cardElement)) {
     const card = game.waste.at(-1);
-    return card ? { type: 'waste', card, elements: [cardElement] } : null;
+
+    return card
+      ? {
+          type: 'waste',
+          card,
+          elements: [cardElement]
+        }
+      : null;
   }
 
   const foundationElement = cardElement.closest('.foundation');
+
   if (foundationElement) {
-    const pileIndex = foundationPiles.indexOf(foundationElement);
+    const pileIndex = foundationPiles.indexOf(
+      foundationElement
+    );
+
     if (pileIndex < 0) return null;
+
     const card = game.foundations[pileIndex].at(-1);
+
     return card
-      ? { type: 'foundation', pileIndex, card, elements: [cardElement] }
+      ? {
+          type: 'foundation',
+          pileIndex,
+          card,
+          elements: [cardElement]
+        }
       : null;
   }
+
   return null;
 }
+
+// --------------------------------------------------
+// Card Movement
+// --------------------------------------------------
 
 function moveCard(source, destinationType, destinationIndex) {
   if (!canInteract()) return false;
 
   if (destinationType === 'tableau') {
-    if (destinationIndex < 0 || destinationIndex >= tableauPiles.length) return false;
+    if (
+      destinationIndex < 0 ||
+      destinationIndex >= tableauPiles.length
+    ) {
+      return false;
+    }
+
     if (source.type === 'tableau') {
       if (source.pileIndex === destinationIndex) return false;
-      return game.recordMove(() => game.moveTableauToTableau(
-        source.pileIndex, source.cardIndex, destinationIndex
-      ));
+
+      return game.recordMove(() =>
+        game.moveTableauToTableau(
+          source.pileIndex,
+          source.cardIndex,
+          destinationIndex
+        )
+      );
     }
+
     if (source.type === 'waste') {
-      return game.recordMove(() => game.moveWasteToTableau(destinationIndex));
+      return game.recordMove(() =>
+        game.moveWasteToTableau(destinationIndex)
+      );
     }
+
     if (source.type === 'foundation') {
-      return game.recordMove(() => game.moveFoundationToTableau(
-        source.pileIndex, destinationIndex
-      ));
+      return game.recordMove(() =>
+        game.moveFoundationToTableau(
+          source.pileIndex,
+          destinationIndex
+        )
+      );
     }
   }
 
   if (destinationType === 'foundation') {
-    if (destinationIndex < 0 || destinationIndex >= foundationPiles.length) return false;
-    if (source.type === 'waste') {
-      return game.recordMove(() => game.moveWasteToFoundation(destinationIndex));
+    if (
+      destinationIndex < 0 ||
+      destinationIndex >= foundationPiles.length
+    ) {
+      return false;
     }
+
+    if (source.type === 'waste') {
+      return game.recordMove(() =>
+        game.moveWasteToFoundation(destinationIndex)
+      );
+    }
+
     if (source.type === 'tableau') {
       const sourcePile = game.tableau[source.pileIndex];
-      if (source.cardIndex !== sourcePile.length - 1) return false;
-      return game.recordMove(() => game.moveTableauToFoundation(
-        source.pileIndex, destinationIndex
-      ));
+
+      if (
+        source.cardIndex !== sourcePile.length - 1
+      ) {
+        return false;
+      }
+
+      return game.recordMove(() =>
+        game.moveTableauToFoundation(
+          source.pileIndex,
+          destinationIndex
+        )
+      );
     }
   }
+
   return false;
 }
 
 // --------------------------------------------------
-// Automatic movement (double-click or double-tap)
+// Automatic Movement: Double-Click / Double-Tap
 // --------------------------------------------------
 
 function autoMoveCard(source) {
-  if (!canInteract() || source.type === 'foundation') return false;
+  if (!canInteract() || source.type === 'foundation') {
+    return false;
+  }
 
   const movingCards = source.type === 'waste'
     ? game.waste.slice(-1)
     : game.tableau[source.pileIndex].slice(source.cardIndex);
 
-  if (!movingCards.length || !game.isValidSequence(movingCards)) return false;
+  if (
+    !movingCards.length ||
+    !game.isValidSequence(movingCards)
+  ) {
+    return false;
+  }
+
   const card = movingCards[0];
 
-  // A sequence can move to a tableau; only an individual card can
-  // be moved to a foundation.
+  // Only a single card may move to a foundation.
   if (movingCards.length === 1) {
     for (let i = 0; i < foundationPiles.length; i++) {
-      if (!game.canMoveToFoundation(card, i)) continue;
+      if (!game.canMoveToFoundation(card, i)) {
+        continue;
+      }
+
       const rects = captureSourceRects(source);
+
       if (moveCard(source, 'foundation', i)) {
         return completeMove(true, {
-          rects, destinationType: 'foundation', destinationIndex: i
+          rects,
+          destinationType: 'foundation',
+          destinationIndex: i
         });
       }
     }
   }
 
   const destinations = [];
+
   for (let i = 0; i < tableauPiles.length; i++) {
-    if (source.type === 'tableau' && source.pileIndex === i) continue;
-    if (game.canMoveToTableau(card, i)) destinations.push(i);
+    if (
+      source.type === 'tableau' &&
+      source.pileIndex === i
+    ) {
+      continue;
+    }
+
+    if (game.canMoveToTableau(card, i)) {
+      destinations.push(i);
+    }
   }
-  if (!destinations.length) return false;
+
+  if (!destinations.length) {
+    return false;
+  }
 
   const lastDestination = automaticMoveHistory.get(card);
+
   const destinationIndex = lastDestination === undefined
     ? destinations[0]
-    : destinations.find(index => index > lastDestination) ?? destinations[0];
+    : destinations.find(index => index > lastDestination) ??
+      destinations[0];
 
   const rects = captureSourceRects(source);
+
   if (moveCard(source, 'tableau', destinationIndex)) {
     automaticMoveHistory.set(card, destinationIndex);
+
     return completeMove(true, {
-      rects, destinationType: 'tableau', destinationIndex
+      rects,
+      destinationType: 'tableau',
+      destinationIndex
     });
   }
+
   return false;
 }
 
 // --------------------------------------------------
-// Pointer handling
+// Pointer Handling
 // --------------------------------------------------
 
-// Remember a completed first tap. Execute the automatic move on the
-// SECOND pointerdown, rather than waiting for its pointerup.
 function isSecondTap(source, event) {
   return (
     lastTap !== null &&
     lastTap.card === source.card &&
     lastTap.pointerType === event.pointerType &&
     performance.now() - lastTap.time <= DOUBLE_TAP_DELAY &&
-    Math.hypot(event.clientX - lastTap.x, event.clientY - lastTap.y) <= DOUBLE_TAP_DISTANCE
+    Math.hypot(
+      event.clientX - lastTap.x,
+      event.clientY - lastTap.y
+    ) <= DOUBLE_TAP_DISTANCE
   );
 }
 
 app.addEventListener('pointerdown', event => {
-  if (!canInteract() || dragState || event.button !== 0 || !event.isPrimary) return;
+  if (
+    !canInteract() ||
+    dragState ||
+    event.button !== 0 ||
+    !event.isPrimary
+  ) {
+    return;
+  }
 
   const cardElement = event.target.closest('.card');
+
   if (!cardElement) {
     clearLastTap();
     return;
   }
+
   const source = getDragSource(cardElement);
+
   if (!source) {
     clearLastTap();
     return;
@@ -519,14 +1046,18 @@ app.addEventListener('pointerdown', event => {
 
   event.preventDefault();
 
-  if (source.type !== 'foundation' && isSecondTap(source, event)) {
+  // Execute a double-click on the second press.
+  if (
+    source.type !== 'foundation' &&
+    isSecondTap(source, event)
+  ) {
     clearLastTap();
     autoMoveCard(source);
     return;
   }
 
-  // A new press begins a possible drag, or a possible first tap.
   clearLastTap();
+
   dragState = {
     ...source,
     pointerId: event.pointerId,
@@ -536,14 +1067,27 @@ app.addEventListener('pointerdown', event => {
     startY: event.clientY,
     dragging: false
   };
+
   cardElement.setPointerCapture(event.pointerId);
 });
 
 document.addEventListener('pointermove', event => {
-  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  if (
+    !dragState ||
+    event.pointerId !== dragState.pointerId
+  ) {
+    return;
+  }
+
   const dx = event.clientX - dragState.startX;
   const dy = event.clientY - dragState.startY;
-  if (!dragState.dragging && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+
+  if (
+    !dragState.dragging &&
+    Math.hypot(dx, dy) < DRAG_THRESHOLD
+  ) {
+    return;
+  }
 
   if (!dragState.dragging) {
     dragState.dragging = true;
@@ -554,22 +1098,34 @@ document.addEventListener('pointermove', event => {
     element.style.zIndex = String(1000 + index);
     element.style.translate = `${dx}px ${dy}px`;
     element.style.pointerEvents = 'none';
-    element.style.filter = 'drop-shadow(0 8px 8px rgba(0,0,0,0.3))';
+    element.style.filter =
+      'drop-shadow(0 8px 8px rgba(0,0,0,0.3))';
   });
 });
 
 document.addEventListener('pointerup', event => {
-  if (!dragState || event.pointerId !== dragState.pointerId) return;
+  if (
+    !dragState ||
+    event.pointerId !== dragState.pointerId
+  ) {
+    return;
+  }
 
   const source = dragState;
   const wasDragging = source.dragging;
+
   const target = wasDragging
-    ? document.elementFromPoint(event.clientX, event.clientY)
+    ? document.elementFromPoint(
+        event.clientX,
+        event.clientY
+      )
     : null;
 
   const tableauDestination = target?.closest('.tableau');
   const foundationDestination = target?.closest('.foundation');
+
   cancelDrag();
+
   if (!canInteract()) return;
 
   if (!wasDragging) {
@@ -582,25 +1138,47 @@ document.addEventListener('pointerup', event => {
         y: event.clientY
       };
     }
+
     return;
   }
 
   let moved = false;
+
   if (tableauDestination) {
-    moved = moveCard(source, 'tableau', tableauPiles.indexOf(tableauDestination));
+    moved = moveCard(
+      source,
+      'tableau',
+      tableauPiles.indexOf(tableauDestination)
+    );
   } else if (foundationDestination) {
-    moved = moveCard(source, 'foundation', foundationPiles.indexOf(foundationDestination));
+    moved = moveCard(
+      source,
+      'foundation',
+      foundationPiles.indexOf(foundationDestination)
+    );
   }
-  if (moved) completeMove(true);
+
+  if (moved) {
+    completeMove(true);
+  }
 });
 
 document.addEventListener('pointercancel', event => {
-  if (dragState && event.pointerId === dragState.pointerId) {
+  if (
+    dragState &&
+    event.pointerId === dragState.pointerId
+  ) {
     cancelDrag();
     clearLastTap();
   }
 });
 
+// --------------------------------------------------
+// Prevent Native Browser Card Dragging
+// --------------------------------------------------
+
 app.addEventListener('dragstart', event => {
-  if (event.target.closest('.card')) event.preventDefault();
+  if (event.target.closest('.card')) {
+    event.preventDefault();
+  }
 });
