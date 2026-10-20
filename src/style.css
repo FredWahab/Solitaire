@@ -23,6 +23,13 @@
     7 * var(--card-width) + 6 * var(--pile-gap)
   );
 
+  /* Draw 3 fan spacing */
+  --waste-fan-offset: clamp(
+    8px,
+    calc(var(--card-width) * 0.12),
+    14px
+  );
+
   --table-green: #146b42;
   --panel-green: #185c3c;
   --panel-dark: #103f2d;
@@ -373,6 +380,45 @@ button {
   pointer-events: none;
   user-select: none;
   -webkit-user-drag: none;
+}
+
+/* ==========================================================
+   Draw 3 - Fanned Waste Cards
+   ========================================================== */
+
+/*
+   The renderer assigns --waste-offset values of 0, 1, 2.
+
+   On desktop and landscape:
+   - First visible card starts at the waste pile.
+   - Second visible card shifts right.
+   - Top playable card shifts farther right.
+
+   On mobile portrait, the direction is reversed
+   to avoid the stock deck, which sits on the right.
+*/
+
+.waste {
+  overflow: visible;
+}
+
+.waste .waste-card {
+  position: absolute;
+  top: 0;
+
+  left: calc(
+    var(--waste-offset, 0) * var(--waste-fan-offset)
+  );
+
+  width: 100%;
+  height: 100%;
+}
+
+/* Underlying waste cards cannot be selected.
+   The renderer also sets pointer-events: none on them. */
+
+.waste .waste-card:not(:last-child) {
+  pointer-events: none;
 }
 
 /* ==========================================================
@@ -775,6 +821,15 @@ button {
     grid-row: 1;
   }
 
+  /* Fan LEFT in portrait because the stock is on the right.
+     The top card remains the playable card. */
+  .waste .waste-card {
+    left: calc(
+      (var(--waste-offset, 0) - 2) *
+      var(--waste-fan-offset)
+    );
+  }
+
   .tableau-row {
     margin-top: 20px;
   }
@@ -837,6 +892,13 @@ button {
 
     --pile-gap: 5px;
     --tableau-offset: calc(var(--card-width) * 0.23);
+
+    /* More compact fan for shorter landscape screens. */
+    --waste-fan-offset: clamp(
+      5px,
+      calc(var(--card-width) * 0.12),
+      9px
+    );
   }
 
   .game-toolbar {
@@ -920,6 +982,20 @@ button {
   .top-row .waste {
     grid-column: 3;
     grid-row: 2;
+  }
+
+  /* In landscape, the waste occupies the right edge.
+     Fan LEFT so it doesn't overflow the screen.
+
+     All visible cards stay within the waste slot
+     or extend slightly into the empty area to its left. */
+  /* Draw 3: stack waste cards downward in landscape. */
+  .waste .waste-card {
+    left: 0;
+    top: calc(
+      var(--waste-offset, 0) *
+      clamp(8px, calc(var(--card-width) * 0.22), 12px)
+    );
   }
 
   .tableau-row {

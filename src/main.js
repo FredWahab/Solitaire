@@ -33,6 +33,7 @@ const modeOverlay = $('.mode-overlay');
 const modeCloseButton = $('.mode-close-button');
 const modeStartButton = $('.mode-start-button');
 const modeStatus = $('.mode-status');
+
 const drawModeInputs = Array.from(
   app.querySelectorAll('input[name="draw-mode"]')
 );
@@ -48,9 +49,11 @@ const helpProgress = $('.help-progress');
 
 const stockPile = $('.stock');
 const wastePile = $('.waste');
+
 const foundationPiles = Array.from(
   app.querySelectorAll('.foundation')
 );
+
 const tableauPiles = Array.from(
   app.querySelectorAll('.tableau')
 );
@@ -90,8 +93,27 @@ const DOUBLE_TAP_DISTANCE = 36;
 const AUTO_MOVE_DURATION = 180;
 const VICTORY_DURATION = 1500;
 
-const storedMode = localStorage.getItem('solitaire-draw-mode');
+// --------------------------------------------------
+// Game Mode State
+// --------------------------------------------------
+
+// selectedDrawCount is the committed preference.
+// pendingDrawCount is only used while the Mode dialog
+// is open.
+//
+// Closing the dialog discards pendingDrawCount.
+// Starting a new game applies and saves it.
+
+const storedMode = localStorage.getItem(
+  'solitaire-draw-mode'
+);
+
 let selectedDrawCount = storedMode === '3' ? 3 : 1;
+let pendingDrawCount = selectedDrawCount;
+
+// --------------------------------------------------
+// General Helpers
+// --------------------------------------------------
 
 function canInteract() {
   return (
@@ -110,6 +132,12 @@ function isReducedMotion() {
   ).matches;
 }
 
+function wait(milliseconds) {
+  return new Promise(resolve =>
+    window.setTimeout(resolve, milliseconds)
+  );
+}
+
 // --------------------------------------------------
 // Timer
 // --------------------------------------------------
@@ -121,7 +149,9 @@ function getElapsedMilliseconds() {
 }
 
 function updateTimerDisplay() {
-  const seconds = Math.floor(getElapsedMilliseconds() / 1000);
+  const seconds = Math.floor(
+    getElapsedMilliseconds() / 1000
+  );
 
   timerValue.textContent =
     `${String(Math.floor(seconds / 60)).padStart(2, '0')}:` +
@@ -142,13 +172,18 @@ function startTimer() {
   timerStartedAt = performance.now();
 
   if (timerInterval === null) {
-    timerInterval = window.setInterval(updateTimerDisplay, 250);
+    timerInterval = window.setInterval(
+      updateTimerDisplay,
+      250
+    );
   }
 }
 
 function stopTimer() {
   if (timerStartedAt !== null) {
-    elapsedMilliseconds += performance.now() - timerStartedAt;
+    elapsedMilliseconds +=
+      performance.now() - timerStartedAt;
+
     timerStartedAt = null;
   }
 
@@ -243,12 +278,17 @@ function updateControls() {
     gameWon ||
     Boolean(activeDialog);
 
-  const modeLabel = `Draw ${selectedDrawCount}`;
+  // Display the current game's mode, rather than
+  // a temporary selection from the Mode dialog.
+  const displayedMode = hasGameStarted
+    ? game.drawCount
+    : selectedDrawCount;
 
-  modeButton.title = `Game mode: ${modeLabel}`;
+  modeButton.title = `Game mode: Draw ${displayedMode}`;
+
   modeButton.setAttribute(
     'aria-label',
-    `Game mode, ${modeLabel}`
+    `Game mode, Draw ${displayedMode}`
   );
 }
 
@@ -275,8 +315,8 @@ function refreshUI() {
 // Undealt Initial Table
 // --------------------------------------------------
 
-// SolitaireGame creates a dealt game in its constructor.
-// Collect its cards into the stock so the initial screen
+// SolitaireGame automatically deals in its constructor.
+// Collect those cards into the stock so the first screen
 // displays a single undealt deck.
 
 game.stock.push(...game.tableau.flat());
@@ -302,17 +342,24 @@ updateTimerDisplay();
 function updateModeDialog() {
   drawModeInputs.forEach(input => {
     input.checked =
-      Number(input.value) === selectedDrawCount;
+      Number(input.value) === pendingDrawCount;
   });
 
   if (!hasGameStarted) {
     modeStatus.textContent =
-      `Selected: Draw ${selectedDrawCount}. ` +
-      'Click New Game to begin.';
+      `Selected: Draw ${pendingDrawCount}. ` +
+      'Start a new game to apply this mode.';
+
+    return;
+  }
+
+  if (pendingDrawCount === game.drawCount) {
+    modeStatus.textContent =
+      `Current game: Draw ${game.drawCount}.`;
   } else {
     modeStatus.textContent =
       `Current game: Draw ${game.drawCount}. ` +
-      `Next game: Draw ${selectedDrawCount}.`;
+      `New game: Draw ${pendingDrawCount}.`;
   }
 }
 
@@ -338,12 +385,21 @@ function openDialog(type) {
   activeDialog = type;
 
   if (type === 'mode') {
+    // Begin with the mode actually being played.
+    // Before the first game, use the saved preference.
+    pendingDrawCount = hasGameStarted
+      ? game.drawCount
+      : selectedDrawCount;
+
     updateModeDialog();
+
     modeOverlay.hidden = false;
     modeCloseButton.focus();
   } else {
     helpStep = 0;
+
     renderHelpStep();
+
     helpOverlay.hidden = false;
     helpNextButton.focus();
   }
@@ -354,7 +410,15 @@ function openDialog(type) {
 function closeDialog() {
   if (!activeDialog) return;
 
+  // Discard temporary changes when closing Mode.
+  if (activeDialog === 'mode') {
+    pendingDrawCount = hasGameStarted
+      ? game.drawCount
+      : selectedDrawCount;
+  }
+
   activeDialog = null;
+
   modeOverlay.hidden = true;
   helpOverlay.hidden = true;
 
@@ -368,6 +432,7 @@ function closeDialog() {
   }
 
   dialogWasTiming = false;
+
   updateControls();
 
   if (dialogFocusReturn?.isConnected) {
@@ -377,29 +442,39 @@ function closeDialog() {
   dialogFocusReturn = null;
 }
 
+// Open Mode
 modeButton.addEventListener('click', () => {
   openDialog('mode');
 });
 
+// Close Mode without applying the selection
 modeCloseButton.addEventListener('click', closeDialog);
 
+// Select a temporary mode
 drawModeInputs.forEach(input => {
   input.addEventListener('change', () => {
-    selectedDrawCount =
+    pendingDrawCount =
       Number(input.value) === 3 ? 3 : 1;
 
-    localStorage.setItem(
-      'solitaire-draw-mode',
-      String(selectedDrawCount)
-    );
-
     updateModeDialog();
-    updateControls();
   });
 });
 
+// Apply the selected mode and start a fresh game
 modeStartButton.addEventListener('click', () => {
+  // Preserve the choice before closeDialog resets it.
+  const newDrawCount = pendingDrawCount;
+
   closeDialog();
+
+  selectedDrawCount = newDrawCount;
+  pendingDrawCount = newDrawCount;
+
+  localStorage.setItem(
+    'solitaire-draw-mode',
+    String(selectedDrawCount)
+  );
+
   startNewGame();
 });
 
@@ -522,7 +597,10 @@ helpNextButton.addEventListener('click', () => {
   }
 });
 
-// Dialog keyboard support
+// --------------------------------------------------
+// Dialog Keyboard Support
+// --------------------------------------------------
+
 document.addEventListener('keydown', event => {
   if (!activeDialog) return;
 
@@ -533,10 +611,9 @@ document.addEventListener('keydown', event => {
 
   if (event.key !== 'Tab') return;
 
-  const overlay =
-    activeDialog === 'mode'
-      ? modeOverlay
-      : helpOverlay;
+  const overlay = activeDialog === 'mode'
+    ? modeOverlay
+    : helpOverlay;
 
   const focusable = Array.from(
     overlay.querySelectorAll(
@@ -654,10 +731,9 @@ function playVictoryConfetti() {
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     context.clearRect(0, 0, width, height);
 
-    context.globalAlpha =
-      progress > 0.8
-        ? Math.max(0, (1 - progress) / 0.2)
-        : 1;
+    context.globalAlpha = progress > 0.8
+      ? Math.max(0, (1 - progress) / 0.2)
+      : 1;
 
     particles.forEach(particle => {
       const x =
@@ -700,6 +776,7 @@ function playVictoryConfetti() {
   }
 
   victoryAnimationFrame = requestAnimationFrame(animate);
+
   return VICTORY_DURATION;
 }
 
@@ -734,12 +811,6 @@ function finishGame() {
       victoryOverlay.hidden = false;
     }
   }, duration);
-}
-
-function wait(milliseconds) {
-  return new Promise(resolve =>
-    window.setTimeout(resolve, milliseconds)
-  );
 }
 
 // --------------------------------------------------
@@ -1048,6 +1119,7 @@ function startNewGame() {
 
   automaticMoveHistory = new WeakMap();
 
+  // Use the committed mode, not a canceled selection.
   game.newGame(selectedDrawCount);
   hasGameStarted = true;
 
@@ -1092,10 +1164,97 @@ timerButton.addEventListener('click', pauseGame);
 resumeButton.addEventListener('click', resumeGame);
 
 // --------------------------------------------------
+// Animated Stock Draw
+// --------------------------------------------------
+
+async function animateStockDraw(card) {
+  const stockRect = stockPile.getBoundingClientRect();
+
+  // Render the newly revealed card in its correct
+  // position within the waste pile.
+  renderer.renderWaste();
+
+  const topWasteCard = wastePile.querySelector(
+    '.waste-card:last-child'
+  );
+
+  const destinationCard =
+    topWasteCard ||
+    wastePile.querySelector('.card:last-child');
+
+  if (!destinationCard) {
+    audio.draw();
+    return;
+  }
+
+  const destinationRect =
+    destinationCard.getBoundingClientRect();
+
+  if (isReducedMotion()) {
+    audio.draw();
+    return;
+  }
+
+  destinationCard.style.visibility = 'hidden';
+
+  const flyingCard = document.createElement('div');
+  flyingCard.className = 'card';
+
+  Object.assign(flyingCard.style, {
+    position: 'fixed',
+    left: `${destinationRect.left}px`,
+    top: `${destinationRect.top}px`,
+    width: `${destinationRect.width}px`,
+    height: `${destinationRect.height}px`,
+    zIndex: '1000',
+    pointerEvents: 'none'
+  });
+
+  const image = document.createElement('img');
+  image.className = 'card-image';
+  image.src = renderer.getCardFacePath(card);
+  image.alt = '';
+  image.draggable = false;
+
+  flyingCard.appendChild(image);
+  document.body.appendChild(flyingCard);
+
+  const dx = stockRect.left - destinationRect.left;
+  const dy = stockRect.top - destinationRect.top;
+
+  audio.draw();
+
+  const animation = flyingCard.animate(
+    [
+      {
+        transform: `translate(${dx}px, ${dy}px)`
+      },
+      {
+        transform: 'translate(0px, 0px)'
+      }
+    ],
+    {
+      duration: 160,
+      easing: 'cubic-bezier(0.2, 0.7, 0.3, 1)',
+      fill: 'forwards'
+    }
+  );
+
+  try {
+    await animation.finished;
+  } catch {
+    // Restore the card if interrupted.
+  } finally {
+    flyingCard.remove();
+    destinationCard.style.visibility = '';
+  }
+}
+
+// --------------------------------------------------
 // Stock Interaction
 // --------------------------------------------------
 
-stockPile.addEventListener('click', () => {
+stockPile.addEventListener('click', async () => {
   // Clicking the initial deck starts the first game.
   if (!hasGameStarted) {
     if (!activeDialog) {
@@ -1112,18 +1271,50 @@ stockPile.addEventListener('click', () => {
 
   const recycling = game.stock.length === 0;
 
-  if (game.recordMove(() => game.drawCard())) {
-    onSuccessfulAction();
+  // Recycle the waste as a single action.
+  if (recycling) {
+    if (game.recordMove(() => game.drawCard())) {
+      onSuccessfulAction();
 
-    if (
-      recycling &&
-      typeof audio.recycle === 'function'
-    ) {
-      audio.recycle();
-    } else {
-      audio.draw();
+      if (typeof audio.recycle === 'function') {
+        audio.recycle();
+      } else {
+        audio.draw();
+      }
+
+      refreshUI();
+      checkForAutomaticCompletion();
     }
 
+    return;
+  }
+
+  const drawAmount = Math.min(
+    game.drawCount,
+    game.stock.length
+  );
+
+  // Store one Undo snapshot for the entire draw.
+  if (!game.recordMove(() => game.drawCard())) {
+    return;
+  }
+
+  // Temporarily remove the drawn cards so we can
+  // reveal them one at a time with sound and motion.
+  const drawnCards = game.waste.splice(-drawAmount);
+
+  isDealing = true;
+  updateControls();
+
+  try {
+    for (const card of drawnCards) {
+      game.waste.push(card);
+      await animateStockDraw(card);
+    }
+  } finally {
+    isDealing = false;
+
+    onSuccessfulAction();
     refreshUI();
     checkForAutomaticCompletion();
   }
@@ -1151,7 +1342,8 @@ function getDragSource(cardElement) {
 
     if (cardIndex < 0) return null;
 
-    const movingCards = game.tableau[pileIndex].slice(cardIndex);
+    const movingCards =
+      game.tableau[pileIndex].slice(cardIndex);
 
     if (
       !movingCards.length ||
@@ -1181,7 +1373,8 @@ function getDragSource(cardElement) {
       : null;
   }
 
-  const foundationElement = cardElement.closest('.foundation');
+  const foundationElement =
+    cardElement.closest('.foundation');
 
   if (foundationElement) {
     const pileIndex = foundationPiles.indexOf(
@@ -1265,7 +1458,8 @@ function moveCard(source, destinationType, destinationIndex) {
     }
 
     if (source.type === 'tableau') {
-      const sourcePile = game.tableau[source.pileIndex];
+      const sourcePile =
+        game.tableau[source.pileIndex];
 
       if (
         source.cardIndex !== sourcePile.length - 1
@@ -1310,7 +1504,7 @@ function autoMoveCard(source) {
 
   const card = movingCards[0];
 
-  // Only a single card may move to a foundation.
+  // A single card can move directly to a foundation.
   if (movingCards.length === 1) {
     for (let i = 0; i < foundationPiles.length; i++) {
       if (!game.canMoveToFoundation(card, i)) {
@@ -1348,17 +1542,23 @@ function autoMoveCard(source) {
     return false;
   }
 
-  const lastDestination = automaticMoveHistory.get(card);
+  const lastDestination =
+    automaticMoveHistory.get(card);
 
-  const destinationIndex = lastDestination === undefined
-    ? destinations[0]
-    : destinations.find(index => index > lastDestination) ??
-      destinations[0];
+  const destinationIndex =
+    lastDestination === undefined
+      ? destinations[0]
+      : destinations.find(
+          index => index > lastDestination
+        ) ?? destinations[0];
 
   const rects = captureSourceRects(source);
 
   if (moveCard(source, 'tableau', destinationIndex)) {
-    automaticMoveHistory.set(card, destinationIndex);
+    automaticMoveHistory.set(
+      card,
+      destinationIndex
+    );
 
     return completeMove(true, {
       rects,
@@ -1413,7 +1613,6 @@ app.addEventListener('pointerdown', event => {
 
   event.preventDefault();
 
-  // Execute an automatic move on the second tap.
   if (
     source.type !== 'foundation' &&
     isSecondTap(source, event)
@@ -1488,8 +1687,11 @@ document.addEventListener('pointerup', event => {
       )
     : null;
 
-  const tableauDestination = target?.closest('.tableau');
-  const foundationDestination = target?.closest('.foundation');
+  const tableauDestination =
+    target?.closest('.tableau');
+
+  const foundationDestination =
+    target?.closest('.foundation');
 
   cancelDrag();
 

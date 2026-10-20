@@ -463,40 +463,35 @@ export class SolitaireRenderer {
       return;
     }
 
-    // Show the card back below the playable waste card
-    // when more than one card is in the waste.
-    if (cards.length > 1) {
-      const backingCard = document.createElement('img');
-      backingCard.className = 'stock-card-image';
-      backingCard.src = this.getCardBackPath();
-      backingCard.alt = '';
-      backingCard.draggable = false;
+    // Draw 1 shows only the latest card.
+    // Draw 3 fans out up to three face-up cards.
+    const visibleCount = this.game.drawCount === 3
+      ? Math.min(3, cards.length)
+      : 1;
 
-      Object.assign(backingCard.style, {
-        position: 'absolute',
-        top: '0',
-        left: '0',
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none',
-        zIndex: '0'
-      });
+    const visibleCards = cards.slice(-visibleCount);
 
-      wastePile.appendChild(backingCard);
-    }
+    visibleCards.forEach((card, index) => {
+      const cardElement = this.createCardElement(card);
+      const isTopCard = index === visibleCards.length - 1;
 
-    const topCardElement = this.createCardElement(
-      cards[cards.length - 1]
-    );
+      cardElement.classList.add('waste-card');
 
-    Object.assign(topCardElement.style, {
-      position: 'absolute',
-      top: cards.length > 1 ? '3px' : '0',
-      left: cards.length > 1 ? '3px' : '0',
-      zIndex: '1'
+      // Earlier cards extend to the left of the top card.
+      cardElement.style.setProperty(
+        '--waste-offset',
+        index
+      );
+
+      cardElement.style.zIndex = String(index + 1);
+
+      // Only the top waste card can be moved.
+      if (!isTopCard) {
+        cardElement.style.pointerEvents = 'none';
+      }
+
+      wastePile.appendChild(cardElement);
     });
-
-    wastePile.appendChild(topCardElement);
   }
 
   // --------------------------------------------------
