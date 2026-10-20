@@ -1,211 +1,277 @@
 
 /* ==========================================================
-   Solitaire - Global Styles
+   Solitaire - Responsive Table and Unified Controls
    ========================================================== */
 
 :root {
-    --card-width: clamp(32px, calc((100vw - 64px) / 8.2), 120px);
-    --card-height: calc(var(--card-width) * 1.4);
-    --pile-gap: calc(var(--card-width) * 0.2);
-    --tableau-offset: calc(var(--card-width) * 0.3);
+  --card-width: clamp(
+    44px,
+    calc((100vw - 96px) / 8),
+    120px
+  );
 
-    /* Width of seven card columns and six gaps. */
-    --game-width: calc(7 * var(--card-width) + 6 * var(--pile-gap));
+  --card-height: calc(var(--card-width) * 1.4);
 
-    --table-green: #146b42;
-    --panel-green: #185c3c;
-    --text-white: #ffffff;
-    --gold: #d9b65d;
-    --selection-gold: #ffd700;
+  --pile-gap: clamp(
+    5px,
+    calc(var(--card-width) * 0.16),
+    18px
+  );
 
-    --card-radius: 8px;
-    --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  --tableau-offset: calc(var(--card-width) * 0.29);
 
-    font-family: Arial, sans-serif;
+  --game-width: calc(
+    7 * var(--card-width) + 6 * var(--pile-gap)
+  );
+
+  --table-green: #146b42;
+  --panel-green: #185c3c;
+  --text-white: #ffffff;
+  --gold: #d9b65d;
+  --selection-gold: #ffd700;
+
+  --card-radius: clamp(
+    4px,
+    calc(var(--card-width) * 0.075),
+    8px
+  );
+
+  --card-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+
+  font-family: Arial, sans-serif;
 }
 
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
 }
 
 body {
-    margin: 0;
-    min-height: 100vh;
-    background-color: var(--table-green);
+  margin: 0;
+  min-height: 100vh;
+  background: var(--table-green);
 }
 
 #app {
-    min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* ==========================================================
-   Game Toolbar
+   Game Header and Statistics
    ========================================================== */
 
 .game-toolbar {
-    width: min(100%, calc(var(--game-width) + 64px));
-    margin: 0 auto;
-    padding: 20px 32px;
+  width: min(100%, calc(var(--game-width) + 40px));
+  margin: 0 auto;
+  padding: 14px 12px 8px;
 
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
 }
 
 .game-title {
-    margin: 0;
-    color: #f8fafc;
-    font-size: clamp(1.75rem, 4vw, 2.5rem);
-    font-weight: 800;
-    letter-spacing: 0.06em;
-    line-height: 1.15;
-    flex-shrink: 0;
+  margin: 0;
+  color: #f8fafc;
 
-    text-shadow:
-        0 2px 3px rgba(0, 0, 0, 0.5),
-        0 0 18px rgba(74, 222, 128, 0.25);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: 0.04em;
+
+  text-shadow: 0 2px 3px #0008;
 }
 
-/* Score and timer occupy the center of the toolbar. */
-
 .game-stats {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 24px;
-    margin-inline: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .score-display,
 .timer-button {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
+  min-width: 75px;
 
-    min-width: 72px;
-    padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
 
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 8px;
+  padding: 5px 10px;
 
-    background-color: var(--panel-green);
-    color: var(--text-white);
+  border: 1px solid #ffffff30;
+  border-radius: 8px;
+
+  background: #103f2d;
+  color: white;
+}
+
+.timer-button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.timer-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .stat-label {
-    color: rgba(255, 255, 255, 0.75);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 1px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: #ffffffb5;
 }
 
 .score-value,
 .timer-value {
-    color: var(--text-white);
-    font-size: 20px;
-    font-weight: 700;
-    font-variant-numeric: tabular-nums;
-    line-height: 1.2;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
 }
 
-/* The timer doubles as the Pause button. */
-
-.timer-button {
-    font-family: inherit;
-    cursor: pointer;
-
-    transition:
-        background-color 0.15s ease,
-        border-color 0.15s ease;
-}
-
-.timer-button:hover:not(:disabled) {
-    background-color: #20744b;
-    border-color: rgba(255, 255, 255, 0.5);
-}
-
-.timer-button:active:not(:disabled) {
-    background-color: #124b30;
-}
-
-.timer-button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-}
+/* ==========================================================
+   Unified Toolbar
+   ========================================================== */
 
 .game-controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-shrink: 0;
+  grid-column: 1 / -1;
+
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 4px;
+
+  padding: 7px 10px;
+
+  background: rgba(6, 43, 25, 0.72);
+  border: 1px solid #ffffff20;
+  border-radius: 13px;
 }
 
 .game-controls button {
-    padding: 10px 20px;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #fff;
 
-    border: 1px solid rgba(255, 255, 255, 0.5);
-    border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 
-    background-color: #ffffff;
-    color: var(--panel-green);
+  min-width: 0;
+  min-height: 56px;
+  gap: 3px;
 
-    font: inherit;
-    font-size: 15px;
-    font-weight: 600;
+  padding: 5px 2px;
+  border-radius: 8px;
 
-    cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
 
-    transition:
-        background-color 0.15s ease,
-        opacity 0.15s ease;
+  cursor: pointer;
+  white-space: nowrap;
+
+  transition: background 0.15s ease;
+}
+
+.game-controls button::before {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  min-height: 29px;
+  display: block;
+}
+
+/* Icons are CSS-generated so main.js can update
+   the Sound button's textContent independently. */
+
+.new-game-button::before {
+  content: '↻';
+}
+
+.undo-button::before {
+  content: '↶';
+}
+
+.sound-button::before {
+  content: '♫';
+}
+
+.mode-button::before {
+  content: '⚙';
+}
+
+.help-button::before {
+  content: '?';
 }
 
 .game-controls button:hover:not(:disabled) {
-    background-color: #e1f2e8;
+  background: #ffffff25;
+}
+
+.game-controls button:active:not(:disabled) {
+  background: #ffffff35;
 }
 
 .game-controls button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
+  opacity: 0.38;
+  cursor: not-allowed;
 }
 
 .game-controls button:focus-visible,
 .timer-button:focus-visible,
 .resume-button:focus-visible,
 .play-again-button:focus-visible {
-    outline: 3px solid var(--selection-gold);
-    outline-offset: 3px;
+  outline: 3px solid var(--selection-gold);
+  outline-offset: 2px;
 }
 
 /* ==========================================================
-   Game Board Layout
+   Desktop Board Arrangement
    ========================================================== */
 
 .game-board {
-    width: min(100%, calc(var(--game-width) + 64px));
-    margin: 0 auto;
-    padding: 32px;
-    padding-bottom: calc(
-        32px + var(--card-height) + 6 * var(--tableau-offset)
-    );
+  width: min(100%, calc(var(--game-width) + 40px));
+  margin: 0 auto;
+  padding: 14px 12px 0;
 }
 
 .top-row,
 .tableau-row {
-    display: grid;
-    grid-template-columns: repeat(7, var(--card-width));
-    gap: var(--pile-gap);
+  display: grid;
+
+  grid-template-columns: repeat(
+    7,
+    var(--card-width)
+  );
+
+  column-gap: var(--pile-gap);
+}
+
+.top-row {
+  align-items: start;
 }
 
 .foundation[data-index="0"] {
-    grid-column: 4;
+  grid-column: 4;
 }
 
 .tableau-row {
-    margin-top: 40px;
+  position: relative;
+  margin-top: 25px;
+  align-items: start;
 }
 
 /* ==========================================================
@@ -213,49 +279,50 @@ body {
    ========================================================== */
 
 .pile {
-    position: relative;
+  position: relative;
 
-    width: var(--card-width);
-    height: var(--card-height);
+  width: var(--card-width);
+  height: var(--card-height);
+  min-width: 0;
 
-    border: 2px dashed rgba(255, 255, 255, 0.35);
-    border-radius: var(--card-radius);
+  border: 2px dashed #ffffff60;
+  border-radius: var(--card-radius);
 }
 
 .stock.has-cards {
-    border: none;
-    cursor: pointer;
+  border: 0;
+  cursor: pointer;
 }
 
 /* ==========================================================
-   SVG Playing Cards
+   Playing Cards
    ========================================================== */
 
 .card {
-    position: relative;
+  position: relative;
 
-    width: 100%;
-    height: 100%;
+  width: 100%;
+  height: 100%;
 
-    border-radius: var(--card-radius);
-    box-shadow: var(--card-shadow);
+  border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
 
-    cursor: grab;
+  cursor: grab;
 }
 
 .card-image,
 .stock-card-image {
-    display: block;
+  display: block;
 
-    width: 100%;
-    height: 100%;
+  width: 100%;
+  height: 100%;
 
-    object-fit: fill;
-    border-radius: var(--card-radius);
+  object-fit: fill;
+  border-radius: var(--card-radius);
 
-    pointer-events: none;
-    user-select: none;
-    -webkit-user-drag: none;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* ==========================================================
@@ -263,39 +330,36 @@ body {
    ========================================================== */
 
 .tableau .card {
-    position: absolute;
-    top: 0;
-    left: 0;
+  position: absolute;
+  top: 0;
+  left: 0;
 
-    transform: translateY(
-        calc(var(--card-index, 0) * var(--tableau-offset))
-    );
+  transform: translateY(
+    calc(
+      var(--card-index, 0) *
+      var(--tableau-offset)
+    )
+  );
 }
 
 /* ==========================================================
    Card Dragging
    ========================================================== */
 
-/*
-   Disable browser touch gestures and text selection
-   on movable cards so Pointer Events can control
-   dragging on both desktop and mobile.
-*/
-
 .tableau .card,
 .waste .card,
 .foundation .card {
-    touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-user-drag: none;
-    cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+  cursor: grab;
 }
 
 .tableau .card:active,
 .waste .card:active,
 .foundation .card:active {
-    cursor: grabbing;
+  cursor: grabbing;
 }
 
 /* ==========================================================
@@ -303,25 +367,25 @@ body {
    ========================================================== */
 
 .game-footer {
-    margin: 20px auto;
-    padding: 8px 16px;
+  width: 100%;
 
-    color: rgba(255, 255, 255, 0.7);
-    font-size: 0.8rem;
-    letter-spacing: 0.03em;
-    text-align: center;
+  margin: auto auto 0;
+  padding: 20px 16px 22px;
+
+  color: #ffffffb5;
+  font-size: 0.8rem;
+  text-align: center;
 }
 
 .game-footer a {
-    color: #ffffff;
-    text-decoration: none;
-    transition: color 0.2s ease;
+  color: white;
+  text-decoration: none;
 }
 
 .game-footer a:hover,
 .game-footer a:focus-visible {
-    color: #d9b65d;
-    text-decoration: underline;
+  color: var(--gold);
+  text-decoration: underline;
 }
 
 /* ==========================================================
@@ -330,197 +394,387 @@ body {
 
 .pause-overlay[hidden],
 .victory-overlay[hidden] {
-    display: none;
+  display: none;
 }
 
 .pause-overlay,
 .victory-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 100;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
 
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 
-    padding: 24px;
-    background-color: rgba(0, 0, 0, 0.65);
+  padding: 24px;
+  background: #000a;
 }
 
 .pause-panel,
 .victory-panel {
-    width: 100%;
-    max-width: 420px;
-    padding: 40px 32px;
+  width: 100%;
+  max-width: 420px;
 
-    border: 2px solid var(--gold);
-    border-radius: 16px;
+  padding: 40px 32px;
 
-    background-color: var(--panel-green);
-    color: var(--text-white);
+  border: 2px solid var(--gold);
+  border-radius: 16px;
 
-    text-align: center;
+  background: var(--panel-green);
+  color: white;
 
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+  text-align: center;
+  box-shadow: 0 16px 48px #0006;
 }
 
 .pause-panel h2,
 .victory-panel h2 {
-    margin: 0 0 16px;
-
-    color: #f3d47a;
-    font-size: 38px;
+  margin: 0 0 16px;
+  color: #f3d47a;
+  font-size: 38px;
 }
 
 .pause-panel p,
 .victory-panel p {
-    margin: 0 0 28px;
-
-    font-size: 17px;
-    line-height: 1.5;
+  margin: 0 0 28px;
+  font-size: 17px;
+  line-height: 1.5;
 }
 
 .resume-button,
 .play-again-button {
-    padding: 12px 28px;
+  padding: 12px 28px;
 
-    border: none;
-    border-radius: 8px;
+  border: 0;
+  border-radius: 8px;
 
-    background-color: #ffffff;
-    color: var(--panel-green);
+  background: white;
+  color: var(--panel-green);
 
-    font: inherit;
-    font-size: 16px;
-    font-weight: 700;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
 
-    cursor: pointer;
-
-    transition: background-color 0.15s ease;
+  cursor: pointer;
 }
 
 .resume-button:hover,
 .play-again-button:hover {
-    background-color: #e1f2e8;
+  background: #e1f2e8;
 }
 
 /* ==========================================================
-   Responsive Layout
+   Mobile Portrait
    ========================================================== */
 
-@media (max-width: 900px) {
-    .game-toolbar {
-        padding: 16px;
-        gap: 12px;
-    }
+/*
+   Foundations occupy the left side of the top row.
+   Waste and stock occupy the right side.
 
-    .game-stats {
-        gap: 12px;
-    }
+   All seven tableau columns sit below.
 
-    .score-display,
-    .timer-button {
-        min-width: 64px;
-        padding: 5px 8px;
-    }
+   The toolbar stays fixed at the bottom.
+*/
 
-    .score-value,
-    .timer-value {
-        font-size: 18px;
-    }
+@media (max-width: 700px) and (orientation: portrait) {
+  :root {
+    --card-width: calc((100vw - 40px) / 7);
+    --pile-gap: 4px;
+    --tableau-offset: calc(var(--card-width) * 0.34);
+  }
 
-    .game-board {
-        padding: 20px 16px;
-    }
+  .game-toolbar {
+    width: 100%;
+    padding: 9px 8px 0;
+    gap: 5px;
+  }
 
-    .tableau-row {
-        margin-top: 32px;
-    }
-}
+  .game-title {
+    font-size: clamp(16px, 4.4vw, 22px);
+  }
 
-@media (max-width: 600px) {
-    .game-toolbar {
-        padding: 12px;
-        gap: 8px;
-    }
+  .game-stats {
+    gap: 7px;
+  }
 
-    .game-title {
-        font-size: 24px;
-    }
+  .score-display,
+  .timer-button {
+    min-width: 64px;
+    padding: 4px 7px;
+  }
 
-    .game-stats {
-        gap: 6px;
-    }
+  .stat-label {
+    font-size: 9px;
+  }
 
-    .score-display,
-    .timer-button {
-        min-width: 52px;
-        padding: 4px 5px;
-        gap: 3px;
-    }
+  .score-value,
+  .timer-value {
+    font-size: 16px;
+  }
 
-    .stat-label {
-        font-size: 9px;
-        letter-spacing: 0.5px;
-    }
+  .game-board {
+    width: 100%;
+    padding: 12px 8px 0;
+  }
 
-    .score-value,
-    .timer-value {
-        font-size: 15px;
-    }
+  .top-row,
+  .tableau-row {
+    grid-template-columns: repeat(
+      7,
+      var(--card-width)
+    );
+  }
 
-    .game-controls {
-        gap: 8px;
-    }
+  .top-row .foundation[data-index="0"] {
+    grid-column: 1;
+    grid-row: 1;
+  }
 
-    .game-controls button {
-        padding: 8px 12px;
-        font-size: 13px;
-    }
+  .top-row .foundation[data-index="1"] {
+    grid-column: 2;
+    grid-row: 1;
+  }
 
-    .game-board {
-        padding: 16px 8px;
-    }
+  .top-row .foundation[data-index="2"] {
+    grid-column: 3;
+    grid-row: 1;
+  }
 
-    .tableau-row {
-        margin-top: 24px;
-    }
+  .top-row .foundation[data-index="3"] {
+    grid-column: 4;
+    grid-row: 1;
+  }
 
-    .pause-panel,
-    .victory-panel {
-        padding: 32px 20px;
-    }
+  .top-row .waste {
+    grid-column: 6;
+    grid-row: 1;
+  }
 
-    .pause-panel h2,
-    .victory-panel h2 {
-        font-size: 32px;
-    }
+  .top-row .stock {
+    grid-column: 7;
+    grid-row: 1;
+  }
+
+  .tableau-row {
+    margin-top: 20px;
+  }
+
+  .game-controls {
+    position: fixed;
+    z-index: 60;
+
+    bottom: 0;
+    left: 0;
+    right: 0;
+
+    width: 100%;
+
+    border-radius: 14px 14px 0 0;
+    border-bottom: 0;
+
+    padding:
+      6px 8px
+      calc(6px + env(safe-area-inset-bottom, 0px));
+
+    gap: 2px;
+  }
+
+  .game-controls button {
+    min-height: 54px;
+    font-size: 11px;
+  }
+
+  .game-controls button::before {
+    font-size: 25px;
+  }
+
+  .game-footer {
+    padding-bottom: calc(
+      86px + env(safe-area-inset-bottom, 0px)
+    );
+  }
 }
 
 /* ==========================================================
    Mobile Landscape
    ========================================================== */
 
-@media (orientation: landscape) and (max-height: 500px) {
-    .game-toolbar {
-        padding-top: 8px;
-        padding-bottom: 8px;
-    }
+/*
+   Four foundation piles stack vertically on the left.
 
-    .game-title {
-        font-size: 22px;
-    }
+   Seven tableau columns occupy the middle.
 
-    .game-controls button {
-        padding: 7px 12px;
-    }
+   Stock and waste occupy the right edge.
 
-    .game-board {
-        padding-top: 12px;
-        padding-bottom: 12px;
-    }
+   The unified toolbar stays at the bottom
+   in a compact horizontal arrangement.
+*/
 
-    .tableau-row {
-        margin-top: 16px;
-    }
+@media (orientation: landscape) and (max-height: 600px) {
+  :root {
+    --card-width: min(
+      calc((100vw - 68px) / 9),
+      calc((100dvh - 110px) / 5.6)
+    );
+
+    --pile-gap: 5px;
+    --tableau-offset: calc(var(--card-width) * 0.23);
+  }
+
+  .game-toolbar {
+    width: 100%;
+    padding: 4px 10px 0;
+
+    grid-template-columns: 1fr auto;
+    gap: 4px;
+  }
+
+  .game-title {
+    font-size: 18px;
+  }
+
+  .game-stats {
+    gap: 6px;
+  }
+
+  .score-display,
+  .timer-button {
+    min-width: 60px;
+    padding: 2px 6px;
+  }
+
+  .stat-label {
+    font-size: 8px;
+  }
+
+  .score-value,
+  .timer-value {
+    font-size: 14px;
+  }
+
+  .game-board {
+    display: grid;
+
+    grid-template-columns:
+      var(--card-width)
+      var(--game-width)
+      var(--card-width);
+
+    column-gap: var(--pile-gap);
+    row-gap: var(--pile-gap);
+
+    justify-content: center;
+    align-items: start;
+
+    width: 100%;
+    padding: 10px 8px 0;
+  }
+
+  /* Use the top row's children directly
+     in the landscape board grid. */
+
+  .top-row {
+    display: contents;
+  }
+
+  .top-row .foundation[data-index="0"] {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .top-row .foundation[data-index="1"] {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .top-row .foundation[data-index="2"] {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .top-row .foundation[data-index="3"] {
+    grid-column: 1;
+    grid-row: 4;
+  }
+
+  .top-row .stock {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .top-row .waste {
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  .tableau-row {
+    grid-column: 2;
+    grid-row: 1 / span 4;
+    margin-top: 0;
+  }
+
+  .game-controls {
+    position: fixed;
+    z-index: 60;
+
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 0;
+
+    width: min(560px, calc(100% - 24px));
+
+    border-radius: 12px 12px 0 0;
+
+    padding:
+      2px 10px
+      calc(2px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .game-controls button {
+    flex-direction: row;
+    min-height: 32px;
+    gap: 6px;
+    font-size: 11px;
+  }
+
+  .game-controls button::before {
+    font-size: 20px;
+    min-height: 20px;
+  }
+
+  .game-footer {
+    padding-bottom: calc(
+      52px + env(safe-area-inset-bottom, 0px)
+    );
+  }
+}
+
+/* ==========================================================
+   Extra Small Mobile Portrait Screens
+   ========================================================== */
+
+@media (max-width: 350px) and (orientation: portrait) {
+  .game-title {
+    font-size: 16px;
+  }
+
+  .game-stats {
+    gap: 4px;
+  }
+
+  .score-display,
+  .timer-button {
+    min-width: 56px;
+    padding-inline: 3px;
+  }
+
+  .score-value,
+  .timer-value {
+    font-size: 14px;
+  }
+
+  .game-controls button {
+    font-size: 10px;
+  }
 }

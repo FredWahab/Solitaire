@@ -753,6 +753,14 @@ resumeButton.addEventListener('click', resumeGame);
 // --------------------------------------------------
 
 stockPile.addEventListener('click', () => {
+  // Before the first deal, clicking the deck starts
+  // a new game instead of drawing a card.
+  if (!hasGameStarted) {
+    startNewGame();
+    return;
+  }
+
+  // After the initial deal, normal stock behavior applies.
   if (!canInteract()) return;
 
   cancelDrag();
@@ -762,7 +770,6 @@ stockPile.addEventListener('click', () => {
     onSuccessfulAction();
     audio.draw();
     refreshUI();
-
     checkForAutomaticCompletion();
   }
 });

@@ -3,9 +3,8 @@ export class SolitaireRenderer {
   constructor(game, container) {
     this.game = game;
     this.container = container;
-
-    // Vite asset base path (supports GitHub Pages).
     this.cardBasePath = `${import.meta.env.BASE_URL}cards/`;
+    this.handleResize = () => this.updateTableauHeight();
   }
 
   // --------------------------------------------------
@@ -20,7 +19,6 @@ export class SolitaireRenderer {
     title.className = 'game-title';
     title.textContent = 'Solitaire';
 
-    // Score and timer
     const stats = document.createElement('div');
     stats.className = 'game-stats';
 
@@ -35,8 +33,7 @@ export class SolitaireRenderer {
     scoreValue.className = 'score-value';
     scoreValue.textContent = '0';
 
-    scoreDisplay.appendChild(scoreLabel);
-    scoreDisplay.appendChild(scoreValue);
+    scoreDisplay.append(scoreLabel, scoreValue);
 
     const timerButton = document.createElement('button');
     timerButton.className = 'timer-button';
@@ -46,80 +43,89 @@ export class SolitaireRenderer {
 
     const timerLabel = document.createElement('span');
     timerLabel.className = 'stat-label';
-    timerLabel.textContent = 'TIME';
+    timerLabel.textContent = 'TIME / PAUSE';
 
     const timerValue = document.createElement('span');
     timerValue.className = 'timer-value';
     timerValue.textContent = '00:00';
 
-    timerButton.appendChild(timerLabel);
-    timerButton.appendChild(timerValue);
+    timerButton.append(timerLabel, timerValue);
+    stats.append(scoreDisplay, timerButton);
 
-    stats.appendChild(scoreDisplay);
-    stats.appendChild(timerButton);
+    // One unified toolbar for desktop and mobile.
+    // CSS changes its position based on screen size.
 
-    // Game controls
-    const controls = document.createElement('div');
+    const controls = document.createElement('nav');
     controls.className = 'game-controls';
+    controls.setAttribute('aria-label', 'Game controls');
 
-    const newGameButton = document.createElement('button');
-    newGameButton.className = 'new-game-button';
-    newGameButton.type = 'button';
-    newGameButton.textContent = 'New Game';
+    const addControl = (className, label, disabled = false) => {
+      const button = document.createElement('button');
+      button.className = className;
+      button.type = 'button';
+      button.title = disabled
+        ? `${label} (coming soon)`
+        : label;
+      button.setAttribute('aria-label', label);
+      button.disabled = disabled;
 
-    const undoButton = document.createElement('button');
-    undoButton.className = 'undo-button';
-    undoButton.type = 'button';
-    undoButton.textContent = 'Undo';
+      // main.js updates the Sound button's textContent,
+      // so the icons are supplied through CSS instead.
+      button.textContent = label;
 
-    const soundButton = document.createElement('button');
-    soundButton.className = 'sound-button';
-    soundButton.type = 'button';
-    soundButton.textContent = 'Sound On';
+      controls.appendChild(button);
+      return button;
+    };
+
+    addControl('new-game-button', 'New Game');
+    addControl('undo-button', 'Undo');
+
+    const soundButton = addControl('sound-button', 'Sound On');
     soundButton.setAttribute('aria-pressed', 'false');
 
-    controls.appendChild(newGameButton);
-    controls.appendChild(undoButton);
-    controls.appendChild(soundButton);
+    // Reserved for Draw 1 / Draw 3 and the tutorial.
+    addControl('mode-button', 'Mode', true);
+    addControl('help-button', 'Help', true);
 
-    toolbar.appendChild(title);
-    toolbar.appendChild(stats);
-    toolbar.appendChild(controls);
-
+    toolbar.append(title, stats, controls);
     this.container.appendChild(toolbar);
 
-    // Main board
+    // --------------------------------------------------
+    // Board
+    // --------------------------------------------------
+
     const board = document.createElement('main');
     board.className = 'game-board';
 
     const topRow = document.createElement('section');
     topRow.className = 'top-row';
+    topRow.setAttribute(
+      'aria-label',
+      'Stock, waste, and foundations'
+    );
 
     const tableauRow = document.createElement('section');
     tableauRow.className = 'tableau-row';
+    tableauRow.setAttribute('aria-label', 'Tableau');
 
-    const stockPile = this.createPile('stock');
-    const wastePile = this.createPile('waste');
+    topRow.appendChild(this.createPile('stock'));
+    topRow.appendChild(this.createPile('waste'));
 
-    topRow.appendChild(stockPile);
-    topRow.appendChild(wastePile);
-
-    // Four foundation piles
     for (let i = 0; i < 4; i++) {
       topRow.appendChild(this.createPile('foundation', i));
     }
 
-    // Seven tableau columns
     for (let i = 0; i < 7; i++) {
       tableauRow.appendChild(this.createPile('tableau', i));
     }
 
-    board.appendChild(topRow);
-    board.appendChild(tableauRow);
-
+    board.append(topRow, tableauRow);
     this.container.appendChild(board);
 
-    // Portfolio footer
+    // --------------------------------------------------
+    // Footer
+    // --------------------------------------------------
+
     const footer = document.createElement('footer');
     footer.className = 'game-footer';
     footer.append('Made by ');
@@ -133,7 +139,10 @@ export class SolitaireRenderer {
     footer.appendChild(authorLink);
     this.container.appendChild(footer);
 
-    // Pause overlay
+    // --------------------------------------------------
+    // Pause Overlay
+    // --------------------------------------------------
+
     const pauseOverlay = document.createElement('div');
     pauseOverlay.className = 'pause-overlay';
     pauseOverlay.hidden = true;
@@ -152,14 +161,19 @@ export class SolitaireRenderer {
     resumeButton.type = 'button';
     resumeButton.textContent = 'Resume';
 
-    pausePanel.appendChild(pauseTitle);
-    pausePanel.appendChild(pauseMessage);
-    pausePanel.appendChild(resumeButton);
+    pausePanel.append(
+      pauseTitle,
+      pauseMessage,
+      resumeButton
+    );
 
     pauseOverlay.appendChild(pausePanel);
     this.container.appendChild(pauseOverlay);
 
-    // Victory overlay
+    // --------------------------------------------------
+    // Victory Overlay
+    // --------------------------------------------------
+
     const victoryOverlay = document.createElement('div');
     victoryOverlay.className = 'victory-overlay';
     victoryOverlay.hidden = true;
@@ -179,12 +193,16 @@ export class SolitaireRenderer {
     playAgainButton.type = 'button';
     playAgainButton.textContent = 'Play Again';
 
-    victoryPanel.appendChild(victoryTitle);
-    victoryPanel.appendChild(victoryMessage);
-    victoryPanel.appendChild(playAgainButton);
+    victoryPanel.append(
+      victoryTitle,
+      victoryMessage,
+      playAgainButton
+    );
 
     victoryOverlay.appendChild(victoryPanel);
     this.container.appendChild(victoryOverlay);
+
+    window.addEventListener('resize', this.handleResize);
   }
 
   createPile(type, index = null) {
@@ -211,9 +229,11 @@ export class SolitaireRenderer {
     };
 
     const rank = rankNames[card.rank] ?? String(card.rank);
-    const suit = card.suit;
 
-    return `${this.cardBasePath}card fronts/${suit}/${rank} of ${suit}.svg`;
+    return (
+      `${this.cardBasePath}card fronts/` +
+      `${card.suit}/${rank} of ${card.suit}.svg`
+    );
   }
 
   getCardBackPath() {
@@ -258,7 +278,7 @@ export class SolitaireRenderer {
   }
 
   // --------------------------------------------------
-  // Stock Pile
+  // Stock
   // --------------------------------------------------
 
   renderStock() {
@@ -269,14 +289,7 @@ export class SolitaireRenderer {
 
     stockPile.classList.toggle('has-cards', hasCards);
 
-    // When the final stock card is drawn, the stock
-    // becomes visibly empty, even if waste cards remain.
-    //
-    // Clicking the empty stock still allows the game
-    // engine to recycle the waste into the stock.
-    if (!hasCards) {
-      return;
-    }
+    if (!hasCards) return;
 
     const cardBack = document.createElement('img');
     cardBack.className = 'stock-card-image';
@@ -288,7 +301,7 @@ export class SolitaireRenderer {
   }
 
   // --------------------------------------------------
-  // Waste Pile
+  // Waste
   // --------------------------------------------------
 
   renderWaste() {
@@ -297,15 +310,7 @@ export class SolitaireRenderer {
 
     const cards = this.game.waste;
 
-    if (cards.length === 0) {
-      return;
-    }
-
-    // Display a card back beneath the playable waste
-    // card when there are additional cards in the pile.
-    //
-    // This visual backing stays in place while the
-    // top card is dragged away.
+    if (cards.length === 0) return;
 
     if (cards.length > 1) {
       const backingCard = document.createElement('img');
@@ -315,28 +320,29 @@ export class SolitaireRenderer {
       backingCard.alt = '';
       backingCard.draggable = false;
 
-      backingCard.style.position = 'absolute';
-      backingCard.style.top = '0';
-      backingCard.style.left = '0';
-      backingCard.style.width = '100%';
-      backingCard.style.height = '100%';
-      backingCard.style.pointerEvents = 'none';
-      backingCard.style.zIndex = '0';
+      Object.assign(backingCard.style, {
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: '0'
+      });
 
       wastePile.appendChild(backingCard);
     }
 
-    // Always show the top waste card face-up.
-    // Offset it slightly when a stack exists so
-    // the blue card back remains visible underneath.
+    const topCardElement = this.createCardElement(
+      cards[cards.length - 1]
+    );
 
-    const topCard = cards[cards.length - 1];
-    const topCardElement = this.createCardElement(topCard);
-
-    topCardElement.style.position = 'absolute';
-    topCardElement.style.top = cards.length > 1 ? '3px' : '0';
-    topCardElement.style.left = cards.length > 1 ? '3px' : '0';
-    topCardElement.style.zIndex = '1';
+    Object.assign(topCardElement.style, {
+      position: 'absolute',
+      top: cards.length > 1 ? '3px' : '0',
+      left: cards.length > 1 ? '3px' : '0',
+      zIndex: '1'
+    });
 
     wastePile.appendChild(topCardElement);
   }
@@ -372,24 +378,63 @@ export class SolitaireRenderer {
       cards.forEach((card, cardIndex) => {
         const cardElement = this.createCardElement(card);
 
-        cardElement.style.setProperty('--card-index', cardIndex);
+        cardElement.style.setProperty(
+          '--card-index',
+          cardIndex
+        );
+
         pileElement.appendChild(cardElement);
       });
     });
+
+    // Absolutely positioned cards don't contribute
+    // to their parent's layout height.
+    this.updateTableauHeight();
   }
 
   // --------------------------------------------------
-  // Rendering Helpers
+  // Dynamic Tableau Height
+  // --------------------------------------------------
+
+  updateTableauHeight() {
+    const tableauRow =
+      this.container.querySelector('.tableau-row');
+
+    if (!tableauRow) return;
+
+    // Clear the previous height before measuring.
+    tableauRow.style.minHeight = '';
+
+    const top = tableauRow.getBoundingClientRect().top;
+    let bottom = top;
+
+    tableauRow.querySelectorAll('.tableau').forEach(pile => {
+      const cards = pile.querySelectorAll('.card');
+      const lastCard = cards[cards.length - 1];
+
+      const visibleEnd = lastCard || pile;
+
+      bottom = Math.max(
+        bottom,
+        visibleEnd.getBoundingClientRect().bottom
+      );
+    });
+
+    tableauRow.style.minHeight =
+      `${Math.ceil(bottom - top + 2)}px`;
+  }
+
+  // --------------------------------------------------
+  // Rendering Helper
   // --------------------------------------------------
 
   renderTopCard(pileElement, cards) {
     pileElement.innerHTML = '';
 
-    if (cards.length === 0) {
-      return;
-    }
+    if (cards.length === 0) return;
 
-    const topCard = cards[cards.length - 1];
-    pileElement.appendChild(this.createCardElement(topCard));
+    pileElement.appendChild(
+      this.createCardElement(cards[cards.length - 1])
+    );
   }
 }
