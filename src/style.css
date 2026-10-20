@@ -244,16 +244,16 @@ button {
   display: block;
 }
 
+/* ==========================================================
+   Toolbar Icons
+   ========================================================== */
+
 .new-game-button::before {
   content: '↻';
 }
 
 .undo-button::before {
   content: '↶';
-}
-
-.sound-button::before {
-  content: '♫';
 }
 
 .mode-button::before {
@@ -263,6 +263,48 @@ button {
 .help-button::before {
   content: '?';
 }
+
+/* ----------------------------------------------------------
+   Sound Icons
+
+   SVG speaker icons embedded directly in CSS.
+   No external assets or JavaScript required.
+
+   aria-pressed="true"  = Sound On
+   aria-pressed="false" = Sound Off
+
+   These SVGs use consistent white outline strokes.
+   ---------------------------------------------------------- */
+
+/* Speaker - Sound On */
+.sound-button::before {
+  content: '';
+
+  display: block;
+  width: 29px;
+  height: 29px;
+  min-height: 29px;
+
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 5 6 9H3v6h3l5 4V5Z'/%3E%3Cpath d='M15.5 8.5a5 5 0 0 1 0 7'/%3E%3Cpath d='M19 5a10 10 0 0 1 0 14'/%3E%3C/svg%3E");
+
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+}
+
+/* Speaker with X - Sound Off */
+.sound-button[aria-pressed="false"]::before {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 5 6 9H3v6h3l5 4V5Z'/%3E%3Cpath d='m17 9 5 6'/%3E%3Cpath d='m22 9-5 6'/%3E%3C/svg%3E");
+}
+
+/* Prevent any old overlay/slash styling from appearing. */
+.sound-button::after {
+  content: none;
+}
+
+/* ==========================================================
+   Toolbar Interaction
+   ========================================================== */
 
 .game-controls button:hover:not(:disabled) {
   background: #ffffff22;
@@ -389,13 +431,14 @@ button {
 /*
    The renderer assigns --waste-offset values of 0, 1, 2.
 
-   On desktop and landscape:
-   - First visible card starts at the waste pile.
-   - Second visible card shifts right.
-   - Top playable card shifts farther right.
+   Desktop:
+   Fan to the right of the waste pile.
 
-   On mobile portrait, the direction is reversed
-   to avoid the stock deck, which sits on the right.
+   Mobile portrait:
+   Fan to the left, away from the stock.
+
+   Mobile landscape:
+   Cascade downward to avoid the seventh tableau column.
 */
 
 .waste {
@@ -413,9 +456,6 @@ button {
   width: 100%;
   height: 100%;
 }
-
-/* Underlying waste cards cannot be selected.
-   The renderer also sets pointer-events: none on them. */
 
 .waste .waste-card:not(:last-child) {
   pointer-events: none;
@@ -821,8 +861,7 @@ button {
     grid-row: 1;
   }
 
-  /* Fan LEFT in portrait because the stock is on the right.
-     The top card remains the playable card. */
+  /* Fan left to avoid the stock deck. */
   .waste .waste-card {
     left: calc(
       (var(--waste-offset, 0) - 2) *
@@ -893,7 +932,6 @@ button {
     --pile-gap: 5px;
     --tableau-offset: calc(var(--card-width) * 0.23);
 
-    /* More compact fan for shorter landscape screens. */
     --waste-fan-offset: clamp(
       5px,
       calc(var(--card-width) * 0.12),
@@ -984,12 +1022,8 @@ button {
     grid-row: 2;
   }
 
-  /* In landscape, the waste occupies the right edge.
-     Fan LEFT so it doesn't overflow the screen.
-
-     All visible cards stay within the waste slot
-     or extend slightly into the empty area to its left. */
-  /* Draw 3: stack waste cards downward in landscape. */
+  /* Draw 3 cards cascade downward instead of
+     overlapping the seventh tableau column. */
   .waste .waste-card {
     left: 0;
     top: calc(
@@ -1030,6 +1064,12 @@ button {
 
   .game-controls button::before {
     font-size: 20px;
+    min-height: 20px;
+  }
+
+  .sound-button::before {
+    width: 20px;
+    height: 20px;
     min-height: 20px;
   }
 
