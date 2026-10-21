@@ -253,7 +253,20 @@ function cancelDrag() {
 
   currentDrag.elements.forEach(element => {
     element.style.translate = '';
-    element.style.zIndex = '';
+
+    // Restore the original stacking order for waste cards.
+    if (element.classList.contains('waste-card')) {
+      const wasteCards = Array.from(
+        element.parentElement.querySelectorAll('.waste-card')
+      );
+
+      element.style.zIndex = String(
+        wasteCards.indexOf(element) + 1
+      );
+    } else {
+      element.style.zIndex = '';
+    }
+
     element.style.pointerEvents = '';
     element.style.filter = '';
   });

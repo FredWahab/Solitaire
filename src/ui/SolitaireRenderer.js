@@ -124,8 +124,8 @@ export class SolitaireRenderer {
     footer.append('Made by ');
 
     const authorLink = document.createElement('a');
-    authorLink.href = 'https://github.com/FredWahab';
-    authorLink.textContent = 'Fred Wahab';
+    authorLink.href = 'https://fredwahab.com';
+    authorLink.textContent = 'fredwahab.com';
     authorLink.target = '_blank';
     authorLink.rel = 'noopener noreferrer';
 
@@ -463,31 +463,47 @@ export class SolitaireRenderer {
       return;
     }
 
-    // Draw 1 shows only the latest card.
-    // Draw 3 fans out up to three face-up cards.
-    const visibleCount = this.game.drawCount === 3
+    const isDrawThree = this.game.drawCount === 3;
+
+    // Draw 1:
+    // Render the top TWO cards in the same position.
+    // When the player drags the top card away,
+    // the previous waste card remains visible.
+    //
+    // Draw 3:
+    // Continue showing up to THREE cards in the
+    // existing fan layout.
+
+    const visibleCount = isDrawThree
       ? Math.min(3, cards.length)
-      : 1;
+      : Math.min(2, cards.length);
 
     const visibleCards = cards.slice(-visibleCount);
 
     visibleCards.forEach((card, index) => {
       const cardElement = this.createCardElement(card);
-      const isTopCard = index === visibleCards.length - 1;
+
+      const isTopCard =
+        index === visibleCards.length - 1;
 
       cardElement.classList.add('waste-card');
 
-      // Earlier cards extend to the left of the top card.
+      // In Draw 1, both cards occupy the exact same
+      // position. In Draw 3, retain the existing fan.
       cardElement.style.setProperty(
         '--waste-offset',
-        index
+        isDrawThree ? index : 0
       );
 
+      // Keep the current top card above every other
+      // waste card until the player starts dragging.
       cardElement.style.zIndex = String(index + 1);
 
-      // Only the top waste card can be moved.
+      // Cards beneath the top card remain visible,
+      // but cannot be directly selected or dragged.
       if (!isTopCard) {
         cardElement.style.pointerEvents = 'none';
+        cardElement.setAttribute('aria-hidden', 'true');
       }
 
       wastePile.appendChild(cardElement);
